@@ -1,0 +1,118 @@
+{
+  "source": "data/model-input.csv",
+  "source_sha256": "224e3494d6bfea3b1c09cb25223a05fab8bc1c19ad83977a50c46d376295a1a4",
+  "target": "positive_sales_invoice_count",
+  "prediction_time": "Start of target_hour; preceding completed-hour counts are available",
+  "split": {
+    "method": "Chronological 60% train / 20% validation / 20% untouched test",
+    "train": {
+      "rows": 5272,
+      "start": "2010-12-08 09:00:00",
+      "end": "2011-07-16 00:00:00"
+    },
+    "validation": {
+      "rows": 1757,
+      "start": "2011-07-16 01:00:00",
+      "end": "2011-09-27 05:00:00"
+    },
+    "test": {
+      "rows": 1758,
+      "start": "2011-09-27 06:00:00",
+      "end": "2011-12-09 11:00:00"
+    }
+  },
+  "selection_metric": "validation MAE in invoices per hour",
+  "validation": {
+    "previous_day_same_hour": {
+      "rows": 1757,
+      "mae": 1.5731,
+      "rmse": 3.2082,
+      "r2": 0.2212,
+      "exact_match_rate": 0.6232,
+      "within_2_invoices_rate": 0.7763,
+      "wape": 0.7642
+    },
+    "basic": {
+      "rows": 1757,
+      "mae": 0.7518,
+      "rmse": 1.6948,
+      "r2": 0.7826,
+      "exact_match_rate": 0.7097,
+      "within_2_invoices_rate": 0.8833,
+      "wape": 0.3652
+    },
+    "full": {
+      "rows": 1757,
+      "mae": 0.7553,
+      "rmse": 1.6918,
+      "r2": 0.7834,
+      "exact_match_rate": 0.7012,
+      "within_2_invoices_rate": 0.8879,
+      "wape": 0.3669
+    },
+    "engineered": {
+      "rows": 1757,
+      "mae": 0.7541,
+      "rmse": 1.6817,
+      "r2": 0.786,
+      "exact_match_rate": 0.6966,
+      "within_2_invoices_rate": 0.8856,
+      "wape": 0.3663
+    }
+  },
+  "selected_model": "basic",
+  "selected_features": [
+    "hour_of_day",
+    "day_of_week",
+    "month",
+    "is_weekend",
+    "orders_lag_1h",
+    "orders_lag_24h"
+  ],
+  "test": {
+    "selected_model": {
+      "rows": 1758,
+      "mae": 1.1456,
+      "rmse": 2.5175,
+      "r2": 0.7929,
+      "exact_match_rate": 0.6741,
+      "within_2_invoices_rate": 0.8237,
+      "wape": 0.338
+    },
+    "previous_day_same_hour": {
+      "rows": 1758,
+      "mae": 2.1854,
+      "rmse": 4.3332,
+      "r2": 0.3865,
+      "exact_match_rate": 0.5899,
+      "within_2_invoices_rate": 0.7133,
+      "wape": 0.6447
+    },
+    "positive_hours": {
+      "rows": 633,
+      "mae": 3.1469,
+      "rmse": 4.1853,
+      "r2": 0.3808,
+      "exact_match_rate": 0.1153,
+      "within_2_invoices_rate": 0.5134,
+      "wape": 0.3343
+    },
+    "high_load_10_or_more": {
+      "rows": 301,
+      "mae": 4.2924,
+      "rmse": 5.3682,
+      "r2": -1.442,
+      "exact_match_rate": 0.0864,
+      "within_2_invoices_rate": 0.3588,
+      "wape": 0.3066
+    },
+    "zero_hour_share": 0.6399
+  },
+  "metric_note": "Exact match and ±2 invoice rates are count tolerances; they are not classification accuracy. WAPE is total absolute error divided by total actual invoices.",
+  "library_versions": {
+    "pandas": "3.0.1",
+    "numpy": "2.3.5",
+    "scikit_learn": "1.7.2",
+    "joblib": "1.6.0"
+  }
+}
