@@ -1,0 +1,45 @@
+[project]
+name = "shopping-workload-api"
+version = "0.1.0"
+description = "Hourly retail workload forecasting and serving API"
+requires-python = ">=3.12"
+dependencies = ["fastapi>=0.115,<1", "pydantic>=2.10,<3", "uvicorn>=0.34,<1", "numpy>=2,<3", "polars>=1.30,<2", "scikit-learn>=1.7,<2", "typer>=0.16,<1"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8,<10",
+    "ruff>=0.12",
+    "basedpyright>=1.29",
+    "scikit-learn-stubs>=0.0.3",
+    "httpx2[brotli,http2,zstd]>=2.13.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-config --strict-markers"
+pythonpath = ["."]
+
+[tool.basedpyright]
+typeCheckingMode = "all"
+pythonVersion = "3.12"
+include = ["workload", "tests", "train.py"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = ["COM812", "D203", "D213", "CPY001", "D100", "D101", "D102", "D103", "D104", "D105", "D107"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["S101", "D", "PLR2004", "DTZ001"]
+"train.py" = ["T201"]
+"workload/schemas.py" = ["EM101"]
+"workload/artifact.py" = ["EM101"]
+"workload/dataset.py" = ["EM101"]
+"workload/model_types.py" = ["N803"]
+
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
