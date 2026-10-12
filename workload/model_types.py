@@ -1,0 +1,29 @@
+from collections.abc import Sequence
+from typing import Protocol, Self
+
+from sklearn.tree import DecisionTreeClassifier
+
+
+class IntOutput(Protocol):
+    def tolist(self) -> list[int]: ...
+
+
+class FloatOutput(Protocol):
+    def tolist(self) -> list[float]: ...
+
+
+class ProbabilityOutput(Protocol):
+    def tolist(self) -> list[list[float]]: ...
+
+
+class Classifier(Protocol):
+    @property
+    def estimators_(self) -> Sequence[DecisionTreeClassifier]: ...
+    def fit(self, X: list[list[float]], y: list[int]) -> Self: ...
+    def predict(self, X: list[list[float]]) -> IntOutput: ...
+    def predict_proba(self, X: list[list[float]]) -> ProbabilityOutput: ...
+
+
+class Regressor(Protocol):
+    def fit(self, X: list[list[float]], y: list[int]) -> Self: ...
+    def predict(self, X: list[list[float]]) -> FloatOutput: ...
