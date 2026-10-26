@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="실제 예측과 사용자 정답 기록을 조회하는 로컬 로그 콘솔입니다.">
+  <title>로그 콘솔 · Hourahead</title>
+  <link rel="stylesheet" href="/static/logs.css">
+  <script type="module" src="/static/logs.mjs"></script>
+</head>
+<body>
+  <a class="skip" href="#main">본문으로 바로가기</a>
+  <header class="console-header"><a class="console-brand" href="/">hourahead<span> / </span><strong>로그 콘솔</strong></a><div><span class="local-pill" id="environment-pill">LOCAL SIMULATION</span><span id="header-region">서울 · ap-northeast-2</span></div></header>
+  <div class="console-layout">
+    <aside class="console-nav" aria-label="로그 탐색">
+      <a class="back-link" href="/">← 작업량 예측으로</a>
+      <div class="nav-heading">모니터링</div>
+      <a href="/log-console" class="nav-selected" aria-current="page"><span aria-hidden="true">▤</span> 로그 그룹</a>
+      <div class="nav-group">/hourahead/workload</div>
+      <button type="button" class="stream-link active" data-stream="">모든 로그 스트림</button>
+      <button type="button" class="stream-link" data-stream="prediction"><span class="stream-dot prediction"></span> prediction</button>
+      <button type="button" class="stream-link" data-stream="feedback"><span class="stream-dot feedback"></span> feedback</button>
+      <div class="nav-description"><strong>실제 서비스 이벤트</strong><p>예측 입력·모델 출력과 사용자가 등록한 정답을 같은 예측 ID로 연결합니다.</p><p>저장된 실제 이벤트를 조회하며 체험용 기록은 샘플로 표시합니다.</p></div>
+      <a class="api-link" href="/docs" target="_blank" rel="noopener">API 문서 ↗</a>
+    </aside>
+    <main id="main">
+      <nav class="breadcrumbs" aria-label="현재 위치"><span>모니터링</span><span aria-hidden="true">›</span><span>로그 그룹</span><span aria-hidden="true">›</span><strong>/hourahead/workload</strong></nav>
+      <div class="page-title"><div><div class="eyebrow">LOG GROUP</div><h1>/hourahead/workload</h1><p>예측부터 정답 등록까지, 이벤트 흐름을 확인하세요.</p></div><button class="button" id="refresh-events" type="button">↻ 새로고침</button></div>
+      <section class="environment-note" aria-label="환경 안내"><span class="notice-symbol" aria-hidden="true">i</span><div><strong id="environment-title">로컬 모사 환경 · AWS 미연결</strong><p>CloudWatch 형식으로 보여주는 로컬 로그 뷰입니다. 실제 저장 상태는 아래 표시를 확인하세요. 이 화면 자체는 AWS CloudWatch 서비스가 아닙니다.</p></div></section>
+      <section class="metrics" aria-label="로그 수집 현황">
+        <div class="metric"><span>저장 대상</span><strong id="destination">확인 중</strong><small id="destination-note">서버 설정을 읽고 있습니다</small></div>
+        <div class="metric"><span>전체 이벤트</span><strong id="total-events">—</strong><small>예측 + 사용자 정답</small></div>
+        <div class="metric"><span id="delivered-label">파일 저장 완료</span><strong id="sent-events">—</strong><small>저장 확인된 이벤트</small></div>
+        <div class="metric"><span>대기 / 재시도</span><strong><span id="pending-events">—</span><span class="metric-slash">/</span><span id="failed-events">—</span></strong><small id="status-note">미확인</small></div>
+      </section>
+      <div id="status-error" class="notice error" role="status" hidden></div>
+      <section class="log-panel" id="log-panel" aria-labelledby="events-heading">
+        <div class="panel-heading"><div><h2 id="events-heading">로그 이벤트 <span id="matching-total" class="count-badge">—</span></h2><p>시각은 UTC 기준입니다. 최신 이벤트부터 표시합니다.</p></div><span id="last-updated">아직 조회하지 않았습니다</span></div>
+        <form id="filter-form" class="filter-form">
+          <div class="filter-field"><label for="event-type">로그 스트림</label><select id="event-type"><option value="">전체 스트림</option><option value="prediction">prediction · 예측</option><option value="feedback">feedback · 사용자 정답</option></select></div>
+          <div class="filter-field id-filter"><label for="correlation-id">예측 ID</label><input id="correlation-id" type="text" autocomplete="off" placeholder="UUID로 관련 이벤트 연결" pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"></div>
+          <div class="filter-field query-filter"><label for="search-query">이벤트 내용 검색</label><input id="search-query" type="search" maxlength="128" placeholder="예: busy, actual_count, model_version"></div>
+          <button type="submit" class="button primary" id="apply-filters">검색</button><button type="button" class="button plain" id="clear-filters">초기화</button>
+        </form>
+        <div id="events-error" class="notice error" role="alert" hidden></div>
+        <div class="event-workspace" id="event-workspace">
+          <div class="table-area"><div class="table-scroll"><table><thead><tr><th scope="col">시간 (UTC)</th><th scope="col">스트림</th><th scope="col">이벤트 요약</th><th scope="col">예측 ID</th><th scope="col">저장 상태</th><th scope="col"><span class="sr-only">상세</span></th></tr></thead><tbody id="events-body"></tbody></table></div><div id="empty-events" class="empty-events" role="status"><span aria-hidden="true">▤</span><strong>로그를 불러오고 있습니다</strong><p>기록된 예측 및 사용자 정답을 조회합니다.</p></div></div>
+          <aside id="event-detail" class="event-detail" aria-labelledby="detail-title" hidden><div class="detail-heading"><h3 id="detail-title">이벤트 상세</h3><button type="button" id="close-detail" aria-label="상세 닫기">×</button></div><dl id="detail-meta"></dl><div class="json-heading"><strong>원본 이벤트 JSON</strong><button type="button" id="download-event" class="text-button">다운로드 ↓</button></div><pre id="event-json" tabindex="0" aria-label="원본 이벤트 JSON"></pre></aside>
+        </div>
+        <div class="pagination"><span id="page-summary" role="status">조회 중</span><button id="load-more" class="button" type="button" disabled>이전 이벤트 더 보기</button></div>
+      </section>
+      <footer><span>로그 그룹과 스트림은 로컬 이벤트를 분류한 표시입니다.</span><span>prediction_id → 입력 · 예측 · 정답 연결</span></footer>
+    </main>
+  </div>
+</body>
+</html>

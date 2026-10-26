@@ -18,3 +18,5 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run basedpyright
       - run: uv run pytest -q
+      - name: Check browser input contracts (Node 20+ on runner)
+        run: node --test tests/input.test.mjs

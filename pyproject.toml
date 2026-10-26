@@ -3,7 +3,16 @@ name = "shopping-workload-api"
 version = "0.1.0"
 description = "Hourly retail workload forecasting and serving API"
 requires-python = ">=3.12"
-dependencies = ["fastapi>=0.115,<1", "pydantic>=2.10,<3", "uvicorn>=0.34,<1", "numpy>=2,<3", "polars>=1.30,<2", "scikit-learn>=1.7,<2", "typer>=0.16,<1"]
+dependencies = [
+    "fastapi>=0.115,<1",
+    "pydantic>=2.10,<3",
+    "uvicorn>=0.34,<1",
+    "numpy>=2,<3",
+    "polars>=1.30,<2",
+    "scikit-learn>=1.7,<2",
+    "typer>=0.16,<1",
+    "boto3[crt]>=1.42,<2",
+]
 
 [dependency-groups]
 dev = [
@@ -12,6 +21,7 @@ dev = [
     "basedpyright>=1.29",
     "scikit-learn-stubs>=0.0.3",
     "httpx2[brotli,http2,zstd]>=2.13.1",
+    "boto3-stubs[s3]>=1.42,<2",
 ]
 
 [tool.pytest.ini_options]
