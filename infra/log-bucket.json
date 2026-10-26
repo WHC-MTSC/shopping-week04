@@ -1,0 +1,65 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Private S3 storage for Hourahead prediction and user feedback events. No IAM identities or credentials are created.",
+  "Resources": {
+    "LogBucket": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            { "ServerSideEncryptionByDefault": { "SSEAlgorithm": "AES256" } }
+          ]
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "IgnorePublicAcls": true,
+          "BlockPublicPolicy": true,
+          "RestrictPublicBuckets": true
+        },
+        "OwnershipControls": {
+          "Rules": [{ "ObjectOwnership": "BucketOwnerEnforced" }]
+        },
+        "Tags": [
+          { "Key": "Application", "Value": "shopping-workload" },
+          { "Key": "Purpose", "Value": "prediction-feedback-events" }
+        ]
+      }
+    },
+    "LogBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "Bucket": { "Ref": "LogBucket" },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "RequireTLS",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": [
+                { "Fn::GetAtt": ["LogBucket", "Arn"] },
+                { "Fn::Sub": "${LogBucket.Arn}/*" }
+              ],
+              "Condition": { "Bool": { "aws:SecureTransport": "false" } }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "BucketName": {
+      "Description": "Set WORKLOAD_S3_BUCKET to this value.",
+      "Value": { "Ref": "LogBucket" }
+    },
+    "BucketArn": {
+      "Description": "Bucket ARN for a separately managed uploader policy.",
+      "Value": { "Fn::GetAtt": ["LogBucket", "Arn"] }
+    }
+  }
+}

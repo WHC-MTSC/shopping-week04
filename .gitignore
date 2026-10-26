@@ -5,3 +5,6 @@ __pycache__/
 *.log
 .pytest_cache/
 .ruff_cache/
+runtime/
+.env
+*.sqlite3*
