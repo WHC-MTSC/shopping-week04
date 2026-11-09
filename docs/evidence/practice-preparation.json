@@ -1,0 +1,40 @@
+{
+  "input_sha256": "6ebc8b6e82dd1c3b4df4cb5b8221b038498225253f3b28730d2a300e73867f6b",
+  "include_demo": true,
+  "promotion_eligible": false,
+  "feature_names": [
+    "hour",
+    "weekday",
+    "month",
+    "weekend",
+    "lag_1h",
+    "lag_24h",
+    "lag_168h",
+    "previous_24h_mean",
+    "previous_3h_mean",
+    "previous_6h_mean",
+    "previous_168h_mean",
+    "previous_day_3h_mean",
+    "previous_week_3h_mean",
+    "hour_sin",
+    "hour_cos",
+    "weekday_sin",
+    "weekday_cos",
+    "day_of_month"
+  ],
+  "counts": {
+    "input_events": 680,
+    "unique_events": 680,
+    "duplicate_events": 0,
+    "excluded_demo_events": 0,
+    "supervised_rows": 336,
+    "reward_rows": 337,
+    "duplicate_supervised_inputs": 1,
+    "quarantined_records": 6
+  },
+  "quarantine_reasons": {
+    "missing_truth": 6
+  },
+  "reward_semantics": "Contextual action/reward feedback; no episodes or next states.",
+  "split_policy": "Sort/split by target_hour; never randomly split rows."
+}

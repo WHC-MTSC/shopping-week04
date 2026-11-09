@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import cast
 from uuid import UUID
 
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
 from workload.log_models import (
     Delivery,
@@ -19,6 +19,9 @@ from workload.log_models import (
     PredictionDetail,
     PredictionEvent,
 )
+from workload.schemas import FrozenModel
+
+CLOUDWATCH_DESTINATION_KEY = "backend_target:cloudwatch"
 
 
 class IdempotencyConflictError(Exception):
@@ -29,16 +32,34 @@ class PredictionMissingError(Exception):
     """Feedback must refer to an existing prediction."""
 
 
+class CloudWatchBindingError(ValueError):
+    """The database cannot safely reuse its CloudWatch acknowledgements."""
+
+
+class CloudWatchDestination(FrozenModel):
+    region: str
+    group: str
+    stream: str
+
+
 class LogStore:
-    def __init__(self, path: Path, *, remote: bool = False, simulated: bool = False) -> None:
-        if remote and simulated:
-            message = "A log store cannot target real and simulated S3 simultaneously"
+    def __init__(
+        self,
+        path: Path,
+        *,
+        remote: bool = False,
+        simulated: bool = False,
+        cloudwatch: bool = False,
+    ) -> None:
+        if sum((remote, simulated, cloudwatch)) > 1:
+            message = "A log store cannot target multiple delivery destinations simultaneously"
             raise ValueError(message)
         self.path: Path = path
         self.remote: bool = remote
         self.simulated: bool = simulated
-        # Existing sent=1 rows mean real S3; bit 2 records local emulation separately.
-        self._delivery_mask: int = 2 if simulated else 1 if remote else 3
+        self.cloudwatch: bool = cloudwatch
+        # Preserve existing S3=1 and simulated=2; CloudWatch has an independent acknowledgment.
+        self._delivery_mask: int = 4 if cloudwatch else 2 if simulated else 1 if remote else 7
 
     @contextmanager
     def connection(self) -> Generator[sqlite3.Connection]:
@@ -69,9 +90,59 @@ class LogStore:
                 CREATE INDEX IF NOT EXISTS events_pending ON events(sent, sequence);
                 CREATE UNIQUE INDEX IF NOT EXISTS one_prediction
                     ON events(prediction_id) WHERE event_type = 'prediction';
+                CREATE TABLE IF NOT EXISTS log_metadata (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
             """)
 
+    def bind_cloudwatch_destination(self, region: str, group: str, stream: str) -> None:
+        """Bind acknowledgements to one exact destination before starting delivery."""
+        if not all(value.strip() for value in (region, group, stream)):
+            message = "CloudWatch region, group and stream must be non-empty"
+            raise CloudWatchBindingError(message)
+        requested = CloudWatchDestination(region=region, group=group, stream=stream)
+        with self.connection() as connection:
+            # First-binding races must serialize before checking metadata and old ACKs.
+            _ = connection.execute("BEGIN IMMEDIATE")
+            row = cast(
+                "tuple[str] | None",
+                connection.execute(
+                    "SELECT value FROM log_metadata WHERE key=?", (CLOUDWATCH_DESTINATION_KEY,)
+                ).fetchone(),
+            )
+            if row is not None:
+                try:
+                    previous = CloudWatchDestination.model_validate_json(row[0], strict=True)
+                except ValidationError:
+                    message = "Invalid CloudWatch destination metadata; use a new log database"
+                    raise CloudWatchBindingError(message) from None
+                if previous != requested:
+                    message = (
+                        "CloudWatch destination changed; use a new log database. "
+                        f"Stored={previous.model_dump_json()} "
+                        f"requested={requested.model_dump_json()}"
+                    )
+                    raise CloudWatchBindingError(message)
+                return
+            acknowledged = cast(
+                "tuple[int] | None",
+                connection.execute("SELECT 1 FROM events WHERE (sent & 4)>0 LIMIT 1").fetchone(),
+            )
+            if acknowledged is not None:
+                message = (
+                    "CloudWatch acknowledgements have no destination binding; "
+                    "use a new log database instead of guessing their destination"
+                )
+                raise CloudWatchBindingError(message)
+            _ = connection.execute(
+                "INSERT INTO log_metadata(key, value) VALUES (?, ?)",
+                (CLOUDWATCH_DESTINATION_KEY, requested.model_dump_json()),
+            )
+
     def delivery(self, sent: int) -> Delivery:
+        if self.cloudwatch:
+            return "cloudwatch_sent" if sent & 4 else "pending"
         if self.simulated:
             return "simulated" if sent & 2 else "pending"
         if self.remote:
@@ -80,7 +151,7 @@ class LogStore:
             return "sent"
         if sent & 2:
             return "simulated"
-        return "local"
+        return "cloudwatch_sent" if sent & 4 else "local"
 
     @staticmethod
     def insert(connection: sqlite3.Connection, event: Event) -> None:
@@ -203,7 +274,7 @@ class LogStore:
             _ = connection.execute(
                 """UPDATE events SET sent=(sent | ?), attempts=attempts+1, last_error=NULL
                    WHERE event_id=?""",
-                (2 if self.simulated else 1, str(event_id)),
+                (4 if self.cloudwatch else 2 if self.simulated else 1, str(event_id)),
             )
 
     def failed(self, event_id: UUID, code: str) -> None:
@@ -232,7 +303,15 @@ class LogStore:
                 ).fetchone(),
             )
         return LoggingStatus(
-            destination="local-s3" if self.simulated else "s3" if self.remote else "local",
+            destination=(
+                "cloudwatch"
+                if self.cloudwatch
+                else "local-s3"
+                if self.simulated
+                else "s3"
+                if self.remote
+                else "local"
+            ),
             region=region,
             pending_events=row[0],
             sent_events=row[1],

@@ -1,0 +1,21 @@
+{
+  "status": "success",
+  "phase": "complete",
+  "error": null,
+  "purpose": "historical_replay_practice",
+  "data_source": "demo",
+  "note": "Historical dataset practice, not live operations or team activity.",
+  "base_url": "http://127.0.0.1:8002",
+  "run_seed": "historical-practice-v1",
+  "namespace": "62d4c5b9-955f-5a25-b929-d56794bec7c0",
+  "source_sha256": "9d8e1967042f446043a33e2258df2d6961e361d0a79ca9b7eb237eddb2866fe8",
+  "truth_sha256": "b4c5a9f2dacc610adf1030275116eaaea475559315c678177c2ee8d1c0a47349",
+  "source_history_row_start": 6863,
+  "source_target_row_end": 7366,
+  "truth_row_start": 2,
+  "truth_row_end": 337,
+  "model_version": "77f4c9c1af34",
+  "model_sha256": "6bb6a0822739c21c398ec932e81117cc422b6e2d90060a134fd666603916dba3",
+  "requested": 336,
+  "completed": 336
+}
