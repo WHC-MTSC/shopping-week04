@@ -1,5 +1,5 @@
 const STAGES = { idle: "없음", normal: "보통", busy: "혼잡" };
-const STORAGE = { local: "로컬 보관", pending: "저장 대기", sent: "실제 S3 저장 완료", simulated: "로컬 S3 모사 저장 완료" };
+const STORAGE = { local: "로컬 보관", pending: "저장 대기", sent: "실제 S3 저장 완료", cloudwatch_sent: "CloudWatch 전송 완료", simulated: "로컬 S3 모사 저장 완료" };
 
 export function storageLabel(status) {
   return STORAGE[status] || "알 수 없는 저장 상태";
@@ -192,19 +192,22 @@ function initLogConsole() {
       const status = await readJSON("/logging");
       if (version !== statusVersion) return;
       const localS3 = status.destination === "local-s3";
-      $("environment-title").textContent = status.destination === "s3"
+      const cloudwatch = status.destination === "cloudwatch";
+      $("environment-title").textContent = cloudwatch
+        ? "CloudWatch 전송 모드 · 로컬 기록 조회"
+        : status.destination === "s3"
         ? "실제 S3 전송 모드 · CloudWatch 스타일 로컬 뷰"
         : "로컬 모사 환경 · AWS 미연결";
-      $("environment-pill").textContent = status.destination === "s3" ? "AWS S3 · LOCAL VIEW" : "LOCAL SIMULATION";
-      $("destination").textContent = localS3 ? "로컬 S3 모사" : status.destination === "s3" ? "실제 AWS S3" : "로컬 보관";
-      $("destination-note").textContent = localS3 ? "로컬 객체 파일 저장 · AWS 미연결" : status.destination === "s3" ? "서버의 AWS 설정 사용" : "파일 전송 대상 미설정";
+      $("environment-pill").textContent = cloudwatch ? "CLOUDWATCH · LOCAL VIEW" : status.destination === "s3" ? "AWS S3 · LOCAL VIEW" : "LOCAL SIMULATION";
+      $("destination").textContent = cloudwatch ? "AWS CloudWatch" : localS3 ? "로컬 S3 모사" : status.destination === "s3" ? "실제 AWS S3" : "로컬 보관";
+      $("destination-note").textContent = cloudwatch ? `${status.log_group} / ${status.log_stream}` : localS3 ? "로컬 객체 파일 저장 · AWS 미연결" : status.destination === "s3" ? "서버의 AWS 설정 사용" : "파일 전송 대상 미설정";
       $("header-region").textContent = `리전 설정 · ${status.region}`;
       $("total-events").textContent = (status.pending_events + status.sent_events).toLocaleString("ko-KR");
       $("sent-events").textContent = status.sent_events.toLocaleString("ko-KR");
       $("pending-events").textContent = status.pending_events.toLocaleString("ko-KR");
       $("failed-events").textContent = status.failed_events.toLocaleString("ko-KR");
       $("failed-events").classList.toggle("problem", status.failed_events > 0);
-      $("delivered-label").textContent = status.destination === "s3" ? "실제 S3 저장 완료" : localS3 ? "모사 파일 저장 완료" : "전송 완료";
+      $("delivered-label").textContent = cloudwatch ? "CloudWatch 전송 완료" : status.destination === "s3" ? "실제 S3 저장 완료" : localS3 ? "모사 파일 저장 완료" : "전송 완료";
       $("status-note").textContent = status.failed_events ? `재시도 중 · ${status.last_error || "저장 오류"}` : "저장 오류 없음";
       showError("status-error");
     } catch (error) { if (version === statusVersion) showError("status-error", error.message); }

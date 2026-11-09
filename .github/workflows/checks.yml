@@ -2,6 +2,7 @@ name: checks
 on:
   push:
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -20,3 +21,114 @@ jobs:
       - run: uv run pytest -q
       - name: Check browser input contracts (Node 20+ on runner)
         run: node --test tests/input.test.mjs
+
+  windows-deployment:
+    name: Windows local deployment smoke test
+    needs: quality
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+      - uses: astral-sh/setup-uv@f64d32b1cd6cc11405a74665b3dfb7bb86fea9f0
+        with:
+          python-version: '3.12'
+          enable-cache: true
+      - name: Check candidate rejection without installation or processes
+        run: ./scripts/test-deploy-preflight.ps1
+      - name: Deploy, restart, update and roll back locally
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = (Get-Location).Path
+          $deploy = Join-Path $source 'scripts/deploy-local.ps1'
+          $parameters = @{ SourcePath = $source; Port = 8001; Backend = 'local' }
+
+          function Write-DeploymentSnapshot([string]$Label, [bool]$ExpectedRunning = $true) {
+            $snapshot = & $deploy -Action Status
+            $json = $snapshot | ConvertTo-Json -Depth 5
+            @("### $Label", '', '```json', $json, '```', '') |
+              Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+            if ($null -eq $snapshot -or $snapshot -is [string] -or
+                $snapshot.Running -ne $ExpectedRunning -or $snapshot.Backend -ne 'local' -or
+                $snapshot.Port -ne 8001) {
+              throw "Unexpected deployment status after $Label."
+            }
+            return $snapshot
+          }
+
+          '# Windows local deployment verification' |
+            Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+          'Backend: local. Startup registration: disabled. No AWS requests.' |
+            Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+
+          $env:WORKLOAD_MODEL_PATH = Join-Path $source 'does-not-exist-model.json'
+          $inheritedModel = $env:WORKLOAD_MODEL_PATH
+          & $deploy -Action Deploy @parameters
+          if ($env:WORKLOAD_MODEL_PATH -ne $inheritedModel) {
+            throw 'Deployment did not restore the inherited model environment.'
+          }
+          Remove-Item Env:\WORKLOAD_MODEL_PATH
+          $first = Write-DeploymentSnapshot 'First deployment'
+          $install = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Hourahead'
+          $stateFile = Join-Path $install 'current.json'
+          $stateBefore = (Get-FileHash -LiteralPath $stateFile).Hash
+          $releasesBefore = @(Get-ChildItem -LiteralPath (Join-Path $install 'releases') -Directory).Count
+          $rejected = $false
+          try {
+            & $deploy -Action Deploy @parameters `
+              -ModelPath (Join-Path $source 'artifacts/practice-model.json') `
+              -ModelReportPath (Join-Path $source 'artifacts/practice-report.json')
+          } catch {
+            if ($_.Exception.Message -notlike 'Candidate model rejected:*') { throw }
+            $rejected = $true
+          }
+          if (-not $rejected -or (Get-FileHash -LiteralPath $stateFile).Hash -ne $stateBefore -or
+              @(Get-ChildItem -LiteralPath (Join-Path $install 'releases') -Directory).Count -ne $releasesBefore) {
+            throw 'Practice candidate rejection changed the active installation.'
+          }
+          $null = Write-DeploymentSnapshot 'Practice candidate rejected without transition'
+          & $deploy -Action Stop
+          $null = Write-DeploymentSnapshot 'Stopped' $false
+          & $deploy -Action Start
+          $restarted = Write-DeploymentSnapshot 'Restarted'
+          if ($restarted.Release -ne $first.Release) { throw 'Restart changed the release.' }
+
+          & $deploy -Action Deploy @parameters
+          $second = Write-DeploymentSnapshot 'Second deployment'
+          if (Test-Path Env:\WORKLOAD_MODEL_PATH) { throw 'Deployment left a previously absent model environment variable.' }
+          if ($second.Release -eq $first.Release) { throw 'Update did not create a new release.' }
+          & $deploy -Action Rollback
+          $rolledBack = Write-DeploymentSnapshot 'Rolled back'
+          if ($rolledBack.Release -ne $first.Release) { throw 'Rollback did not restore the first release.' }
+      - name: Always stop the owned test server
+        if: always()
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $deploy = Join-Path (Get-Location).Path 'scripts/deploy-local.ps1'
+          if (Test-Path -LiteralPath $deploy) {
+            & $deploy -Action Stop
+            $snapshot = & $deploy -Action Status
+            @('### Cleanup', '', '```json', ($snapshot | ConvertTo-Json -Depth 5), '```', '') |
+              Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+            if ($null -ne $snapshot -and $snapshot -isnot [string] -and $snapshot.Running) {
+              throw 'The owned server is still running after cleanup.'
+            }
+          }
+
+  source-archive:
+    name: Archive verified committed source
+    needs: [quality, windows-deployment]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+      - name: Archive HEAD without runtime or untracked files
+        run: git archive --format=zip --prefix=shopping-week04/ --output=source.zip HEAD
+      - name: Provide source download for 14 days
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: source-${{ github.sha }}
+          path: source.zip
+          if-no-files-found: error
+          retention-days: 14

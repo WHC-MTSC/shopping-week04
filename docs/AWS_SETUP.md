@@ -1,8 +1,35 @@
-# S3 로그 수집 설정
+# AWS 로그 수집 설정
 
 이 문서는 **실제 AWS 연결을 선택할 때** 사용하는 안내입니다. AWS 없이 확인할 수 있는 [로컬 S3 모사와 로그 콘솔](LOCAL_LOG_CONSOLE.md), 계정 관리자에게 전달할 [역할별 AWS 권한 목록](AWS_PERMISSIONS.md)도 제공합니다.
 
-이 서비스는 입력·예측·사용자 정답 이벤트를 SQLite에 먼저 기록하고 S3로 전송합니다. 현재 구현된 원격 저장소는 **S3**입니다. CloudWatch Logs 전송은 구현하지 않았으며, 서버의 일반 요청 로그와 이 이벤트 수집은 별개입니다.
+이 서비스는 입력·예측·사용자 정답 이벤트를 SQLite에 먼저 기록하고 선택한 **S3 또는 CloudWatch Logs** 대상으로 재시도하며 전송합니다. 한 실행에서 원격 대상 하나를 선택합니다. 서버의 일반 요청 로그와 이 이벤트 수집은 별개입니다.
+
+## CloudWatch 연결과 실제 읽기 검증
+
+서울 리전의 **기존 로그 그룹과 스트림** 이름, 사용할 AWS 프로필이 필요합니다. 앱은 그룹·스트림이나 IAM 정책을 만들지 않습니다. 관리자가 제공할 권한 예시는 [`infra/cloudwatch-policy.example.json`](../infra/cloudwatch-policy.example.json)입니다. `PutLogEvents`는 지정 스트림, 검증·다운로드용 `FilterLogEvents`는 지정 그룹으로 제한합니다.
+
+```powershell
+uv run --locked python -m workload.launch cloudwatch --log-group /shopping-week04/workload --log-stream pc-local --profile workload
+```
+
+이 명령은 STS 인증을 확인한 뒤 `runtime/cloudwatch-live/events.sqlite3`를 사용해 서버를 시작합니다. `/logging`의 `destination`, `region`, `log_group`, `log_stream`으로 설정을 확인하세요. 같은 DB에서 그룹·스트림·리전을 변경하면 이전 전송 완료 표시를 재사용하지 않도록 시작을 차단합니다. 대상 변경 시 원래 DB를 보존하고 별도 DB를 사용합니다.
+
+다른 터미널에 같은 설정을 지정하고 실제 AWS 이벤트를 다시 읽습니다. PC 배포 포트가 8001이면 `--base-url http://127.0.0.1:8001`을 추가합니다.
+
+```powershell
+$env:AWS_PROFILE = 'workload'
+$env:AWS_REGION = 'ap-northeast-2'
+$env:WORKLOAD_LOG_BACKEND = 'cloudwatch'
+$env:WORKLOAD_CLOUDWATCH_LOG_GROUP = '/shopping-week04/workload'
+$env:WORKLOAD_CLOUDWATCH_LOG_STREAM = 'pc-local'
+uv run --locked python -m workload.cloudwatch_check --timeout 60 --output runtime/cloudwatch-check.json
+```
+
+검증기는 과거 샘플 예측과 CSV에 있는 실제 정답을 `data_source=demo`로 기록하고, 두 이벤트가 `cloudwatch_sent`가 된 뒤 AWS `FilterLogEvents`에서 같은 event_id와 전체 JSON 본문을 확인해야 성공합니다. 인증·전송·조회 권한 오류, 다른 대상 설정, 시간 초과, 본문 불일치, 보고서 저장 실패는 실패입니다. `status=success`, `phase=complete`인 실제 보고서가 있어야 AWS 검증 완료로 간주합니다.
+
+CloudWatch에는 전송 시각을 쓰고 원래 `recorded_at`·`target_hour`는 JSON 안에 보존합니다. 부분 거절 응답은 완료 처리하지 않습니다. 재시도 때문에 같은 event_id가 여러 번 도착할 수 있으므로 [전처리](TRAINING_DATA.md)에서 중복 제거합니다. [PutLogEvents API](https://docs.aws.amazon.com/AmazonCloudWatchLogs/latest/APIReference/API_PutLogEvents.html)
+
+`/log-console`은 로컬 DB와 전송 상태를 보여주는 화면입니다. 실제 AWS 콘솔 화면이나 AWS에서 다시 읽은 결과는 아닙니다. 실제 로그의 [다운로드 절차](LOG_EXPORT.md)와 [PC 배포 절차](DEPLOYMENT.md)를 따르세요.
 
 ## 서울 리전의 저장소 준비
 
@@ -29,7 +56,7 @@ aws cloudformation describe-stacks --stack-name shopping-workload-logs --profile
 ```powershell
 $env:AWS_PROFILE = 'workload'
 $env:AWS_REGION = 'ap-northeast-2'
-$env:WORKLOAD_LOG_DB = 'runtime/events.sqlite3'
+$env:WORKLOAD_LOG_DB = 'runtime/aws-live/events.sqlite3'
 $env:WORKLOAD_S3_PREFIX = 'workload-events'
 $env:WORKLOAD_LOG_BACKEND = 's3'
 $env:WORKLOAD_S3_BUCKET = '<BucketName 출력값>'
@@ -37,17 +64,40 @@ uv sync --locked
 uv run --locked uvicorn workload.api:app --host 127.0.0.1 --port 8000
 ```
 
+위 명령은 실제 AWS 시험 전용 DB를 사용합니다. 기존 모사 DB인 `runtime/events.sqlite3`를 그대로 사용하면 과거 샘플까지 원격 전송 대상이 되므로, 첫 연결 시험은 분리한 DB로 시작합니다. 같은 시험을 다시 이어갈 때는 `runtime/aws-live/events.sqlite3`를 보존합니다.
+
 | 변수 | 기본값 / 의미 |
 |---|---|
 | `AWS_REGION` | `ap-northeast-2`; S3 클라이언트 리전 |
 | `AWS_PROFILE` | 미지정 시 Boto3 기본 인증 탐색; 로컬 로그인 프로필명 |
-| `WORKLOAD_LOG_BACKEND` | `local`, `local-s3`, `s3`; 미지정이면 버킷이 있을 때 `s3`, 없으면 `local` |
+| `WORKLOAD_LOG_BACKEND` | `local`, `local-s3`, `s3`, `cloudwatch`; 미지정이면 버킷이 있을 때 `s3`, 없으면 `local` |
+| `WORKLOAD_CLOUDWATCH_LOG_GROUP` / `WORKLOAD_CLOUDWATCH_LOG_STREAM` | `cloudwatch` 모드에서 필요한 기존 그룹·스트림 이름 |
+| `WORKLOAD_MODEL_PATH` | 기본 `artifacts/model.json`; 시작 시 읽을 JSON 모델 경로 |
 | `WORKLOAD_LOCAL_S3_ROOT` | `runtime/local-s3`; 모사 객체의 루트 디렉터리 |
 | `WORKLOAD_S3_BUCKET` | 실제 AWS S3 버킷명; `s3` 모드에서 필요 |
 | `WORKLOAD_S3_PREFIX` | `workload-events`; 버킷 안의 저장 경로 접두사 |
 | `WORKLOAD_LOG_DB` | `runtime/events.sqlite3`; 입력·결과·정답·전송 상태를 보관하는 파일 |
 
 별도 경로에 CLI 설정/인증 캐시를 보관했다면 `AWS_CONFIG_FILE`, `AWS_SHARED_CREDENTIALS_FILE`, `AWS_LOGIN_CACHE_DIRECTORY`를 CLI와 서버에 동일하게 전달해야 합니다. 키·토큰·인증 캐시를 소스나 로그에 넣지 마세요. `runtime/` 및 `.env`는 Git에서 제외됩니다. 현재 애플리케이션은 인증이 없는 로컬 개발용이므로 외부 공개 전 예측 조회와 정답 작성에 사용자별 접근 제어를 추가해야 합니다.
+
+## 실제 수집 확인
+
+서버를 실행한 상태에서, 같은 AWS 프로필·리전·버킷·접두사 및 인증 경로를 설정한 다른 터미널에서 실행합니다.
+
+```powershell
+uv run --locked python -m workload.live_check --base-url http://127.0.0.1:8000 --timeout 60 --output runtime/aws-live/check.json
+```
+
+검증 도구는 다음 순서로 실제 HTTP API와 AWS SDK를 호출합니다.
+
+1. `/logging`이 실제 `s3` 모드인지 확인하고 STS로 검증 도구의 인증을 확인합니다.
+2. 저장소의 과거 샘플을 `data_source=demo`로 예측합니다. 해당 시간의 정답은 `artifacts/test-predictions.csv`에서 읽고, 정답 행이 없으면 중단합니다.
+3. 실제 과거 건수를 정답으로 제출하고 예측·정답 두 이벤트가 `sent`가 될 때까지 기다립니다.
+4. 지정한 S3 버킷에서 두 객체를 다시 읽어 앱 기록과 JSON 내용이 같은지, 암호화가 `AES256`인지 확인합니다.
+
+모사 모드, 인증 실패, 전송 대기 시간 초과, 원격 객체 불일치는 성공으로 처리하지 않습니다. 성공 시 `status=success`, `phase=complete` 및 두 객체의 키가 보고서에 남습니다. 실패 시 종료 코드는 1이며 `phase`, `error`, `delivery_error`로 중단 위치를 확인합니다. 비밀키·토큰과 원문 오류 메시지는 보고서에 포함하지 않습니다.
+
+한 번 실행할 때 시험용 예측 1건과 정답 1건이 추가되며 자동 삭제하지 않습니다. 이 데이터는 운영 정답이나 새 서비스의 성능 평가에 포함하지 마세요. `--timeout`은 검증 제한 시간이며, 진행 중인 AWS SDK 요청은 설정된 연결·읽기 제한까지 기다릴 수 있습니다. 로컬 테스트 통과와 도구 추가만으로 실제 AWS 연결이 검증된 것은 아닙니다.
 
 ## 최소 업로드 권한
 
@@ -103,6 +153,7 @@ workload-events/feedback/YYYY/MM/DD/<event_id>.json
 | `pending` | 로컬 저장 완료, S3 전송 대기 또는 재시도 중 |
 | `simulated` | 로컬 S3 모사 파일 저장 완료; 실제 AWS 업로드 아님 |
 | `sent` | 해당 이벤트의 실제 S3 업로드 확인 완료 |
+| `cloudwatch_sent` | CloudWatch PutLogEvents 수락 확인; 별도의 AWS 읽기 검증은 검증 CLI에서 수행 |
 
 `GET /logging`은 `destination`, `region`, `pending_events`, `sent_events`, `failed_events`, `last_error`를 반환합니다. 오류에는 자격증명·입력값 대신 오류 클래스 이름만 남깁니다. 예측 응답 당시의 `log_status`는 이후 변경될 수 있으므로 화면의 **저장 상태 새로고침** 또는 예측 조회 API로 다시 확인합니다. `/health`의 모델 준비 상태만으로 S3 연결 성공을 판단하지 마세요.
 

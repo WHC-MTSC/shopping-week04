@@ -1,0 +1,17 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "WriteExistingStream",
+      "Effect": "Allow",
+      "Action": "logs:PutLogEvents",
+      "Resource": "arn:aws:logs:ap-northeast-2:REPLACE_WITH_ACCOUNT_ID:log-group:REPLACE_WITH_GROUP:log-stream:REPLACE_WITH_STREAM"
+    },
+    {
+      "Sid": "VerifyAndExportExistingGroup",
+      "Effect": "Allow",
+      "Action": "logs:FilterLogEvents",
+      "Resource": "arn:aws:logs:ap-northeast-2:REPLACE_WITH_ACCOUNT_ID:log-group:REPLACE_WITH_GROUP:*"
+    }
+  ]
+}

@@ -11,8 +11,9 @@ from typing import TYPE_CHECKING, Protocol, Self
 import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
-from pydantic import TypeAdapter, model_validator
+from pydantic import Field, TypeAdapter, model_validator
 
+from workload.cloudwatch_delivery import CloudWatchSink
 from workload.log_models import Event, LogBackend
 from workload.log_store import LogStore
 from workload.schemas import FrozenModel
@@ -30,6 +31,10 @@ class LogSettings(FrozenModel):
     backend: LogBackend = "local"
     local_s3_root: Path = Path("runtime/local-s3")
     local_s3_bucket: str = "hourahead-local-logs"
+    log_group: str | None = Field(
+        default=None, min_length=1, max_length=512, pattern=r"^[.\-_/#A-Za-z0-9]+$"
+    )
+    log_stream: str | None = Field(default=None, min_length=1, max_length=512, pattern=r"^[^:*]+$")
 
     @model_validator(mode="after")
     def resolve_backend(self) -> Self:
@@ -37,6 +42,12 @@ class LogSettings(FrozenModel):
             object.__setattr__(self, "backend", "s3")
         if self.backend == "s3" and not self.bucket:
             message = "The s3 backend requires WORKLOAD_S3_BUCKET"
+            raise ValueError(message)
+        if self.backend == "cloudwatch" and (not self.log_group or not self.log_stream):
+            message = (
+                "The cloudwatch backend requires WORKLOAD_CLOUDWATCH_LOG_GROUP "
+                "and WORKLOAD_CLOUDWATCH_LOG_STREAM"
+            )
             raise ValueError(message)
         return self
 
@@ -53,6 +64,8 @@ class LogSettings(FrozenModel):
                 os.environ.get("WORKLOAD_LOG_BACKEND", "s3" if bucket else "local")
             ),
             local_s3_root=Path(os.environ.get("WORKLOAD_LOCAL_S3_ROOT", "runtime/local-s3")),
+            log_group=os.environ.get("WORKLOAD_CLOUDWATCH_LOG_GROUP") or None,
+            log_stream=os.environ.get("WORKLOAD_CLOUDWATCH_LOG_STREAM") or None,
         )
 
 
@@ -169,6 +182,8 @@ class S3Sink:
 
 
 def build_sink(settings: LogSettings) -> EventSink | None:
+    if settings.backend == "cloudwatch":
+        return CloudWatchSink(settings)
     if settings.backend == "local-s3":
         return LocalS3Sink(settings)
     return S3Sink(settings) if settings.backend == "s3" else None

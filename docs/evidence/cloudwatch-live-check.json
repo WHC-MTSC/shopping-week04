@@ -1,0 +1,20 @@
+{
+  "status": "success",
+  "phase": "complete",
+  "error": null,
+  "delivery_error": null,
+  "purpose": "diagnostic_demo",
+  "data_source": "demo",
+  "authentication": "verified",
+  "region": "ap-northeast-2",
+  "log_group": "/shopping-week04/workload",
+  "log_stream": "pc-local",
+  "prediction_id": "48c3e91d-3cee-4efa-9f47-7fab430f17c4",
+  "feedback_id": "fd2628f6-9ff4-4482-bb55-3ddc68945ac7",
+  "actual_count": 0,
+  "verified_event_ids": [
+    "8bb9d883-0b07-4144-8e2b-b098614e13e6",
+    "fd2628f6-9ff4-4482-bb55-3ddc68945ac7"
+  ],
+  "elapsed_seconds": 4.031
+}
