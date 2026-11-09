@@ -112,10 +112,13 @@ function Get-OwnedProcess($State, [switch]$AllowStale) {
     $recorded = ([datetime]$State.CreatedUtc).ToUniversalTime().Ticks
     # A later process can reuse a PID after logout/reboot. Never stop that process.
     if ($created -ne $recorded -and $AllowStale) { return $null }
-    if ($process.ExecutablePath -ne $python -or $created -ne $recorded -or
-        $process.CommandLine -notmatch '-m uvicorn workload\.api:app' -or
-        $process.CommandLine -notmatch ('--port ' + [int]$State.Port + '(\s|$)')) {
-        throw 'PID ownership cannot be verified; refusing to stop or reuse this process.'
+    $mismatches = @()
+    if ($process.ExecutablePath -ne $python) { $mismatches += 'executable_path' }
+    if ($created -ne $recorded) { $mismatches += 'creation_time' }
+    if ($process.CommandLine -notmatch '-m uvicorn workload\.api:app') { $mismatches += 'uvicorn_command' }
+    if ($process.CommandLine -notmatch ('--port ' + [int]$State.Port + '(\s|$)')) { $mismatches += 'port' }
+    if ($mismatches.Count) {
+        throw ('PID ownership cannot be verified (' + ($mismatches -join ', ') + '); refusing to stop or reuse this process.')
     }
     return $process
 }
@@ -155,6 +158,12 @@ function Stop-Owned($State) {
             }
             Stop-Process -Id $child.ProcessId -ErrorAction Stop
             Wait-Process -Id $child.ProcessId -Timeout 15 -ErrorAction SilentlyContinue
+        }
+        if ($serverChildren.Count) {
+            # The venv redirector normally exits when its interpreter child exits.
+            # During that transition CIM can still list it with empty executable/
+            # command metadata. Wait for natural exit before the strict recheck.
+            Wait-Process -Id $process.ProcessId -Timeout 2 -ErrorAction SilentlyContinue
         }
         if ($null -ne (Get-OwnedProcess $State)) {
             Stop-Process -Id $process.ProcessId -ErrorAction Stop

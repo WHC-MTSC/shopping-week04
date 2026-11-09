@@ -37,7 +37,9 @@ jobs:
           python-version: '3.12'
           enable-cache: true
       - name: Check candidate rejection without installation or processes
-        run: ./scripts/test-deploy-preflight.ps1
+        run: |
+          ./scripts/test-deploy-preflight.ps1
+          ./scripts/test-deploy-process.ps1
       - name: Deploy, restart, update and roll back locally
         run: |
           $ErrorActionPreference = 'Stop'
