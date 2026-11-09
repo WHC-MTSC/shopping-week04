@@ -1,0 +1,28 @@
+{
+  "source_commit": "37a510d873a2a8712dd23a2ae5f4507ad9fedbc3",
+  "run_url": "https://github.com/WHC-MTSC/shopping-week04/actions/runs/42586898228",
+  "status": "success",
+  "jobs": [
+    {
+      "id": 129058784001,
+      "name": "quality",
+      "conclusion": "success"
+    },
+    {
+      "id": 129059094459,
+      "name": "Windows local deployment smoke test",
+      "conclusion": "success"
+    },
+    {
+      "id": 129060573745,
+      "name": "Archive verified committed source",
+      "conclusion": "success"
+    }
+  ],
+  "checks": {
+    "python_passed": 252,
+    "javascript_passed": 29,
+    "windows_deployment": "deploy/restart/candidate rejection/update/rollback/cleanup passed"
+  },
+  "scope": "GitHub Windows runner uses local backend; actual AWS verification is recorded separately."
+}
