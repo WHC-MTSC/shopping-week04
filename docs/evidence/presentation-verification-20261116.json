@@ -1,0 +1,388 @@
+{
+  "checked_at_utc": "2026-11-16T07:07:30.119150+00:00",
+  "code_commit": "f7f247d884500a454bd65cde51722db887d96d4a",
+  "overall": "local_demo_passed_aws_login_required",
+  "local_base_url": "http://127.0.0.1:18001",
+  "health": {
+    "status": "ready",
+    "model_version": "77f4c9c1af34"
+  },
+  "logging": {
+    "destination": "local",
+    "region": "ap-northeast-2",
+    "log_group": null,
+    "log_stream": null,
+    "pending_events": 10,
+    "sent_events": 0,
+    "failed_events": 0,
+    "last_error": null
+  },
+  "quality": {
+    "python_passed": 252,
+    "node_passed": 32,
+    "lint_format_typecheck": "passed"
+  },
+  "api_rejection_and_read_checks": {
+    "status": "passed",
+    "checked_at_utc": "2026-11-16T06:59:59.464325+00:00",
+    "base_url": "http://127.0.0.1:18001",
+    "source_head": "91e054f780dc9b8826dba7425eadb08b8687f8f2",
+    "purpose": "presentation_read_and_rejected_synthetic_requests",
+    "data_source_header": "demo",
+    "created_events_for_check_id": 0,
+    "request_id": "fe1a4266-098c-4164-a0dd-ad0850a3353f",
+    "model_version": "77f4c9c1af34",
+    "model_sha256_matches_repository": true,
+    "logging_destination": "local",
+    "tests": [
+      {
+        "check": "health",
+        "status_code": 200,
+        "expected": 200,
+        "elapsed_ms": 62,
+        "passed": true
+      },
+      {
+        "check": "metadata",
+        "status_code": 200,
+        "expected": 200,
+        "elapsed_ms": 16,
+        "passed": true
+      },
+      {
+        "check": "logging",
+        "status_code": 200,
+        "expected": 200,
+        "elapsed_ms": 0,
+        "passed": true
+      },
+      {
+        "check": "example_schema",
+        "status_code": 200,
+        "expected": 200,
+        "elapsed_ms": 0,
+        "passed": true
+      },
+      {
+        "check": "log_page_schema",
+        "status_code": 200,
+        "expected": 200,
+        "elapsed_ms": 16,
+        "passed": true
+      },
+      {
+        "check": "log_keyset_pagination",
+        "status_code": 200,
+        "expected": 200,
+        "elapsed_ms": 31,
+        "passed": true
+      },
+      {
+        "check": "stored_prediction_schema",
+        "status_code": 200,
+        "expected": 200,
+        "elapsed_ms": 32,
+        "passed": true
+      },
+      {
+        "check": "prediction_id_filter",
+        "status_code": 200,
+        "expected": 200,
+        "elapsed_ms": 31,
+        "passed": true
+      },
+      {
+        "check": "event_type_filter_prediction",
+        "status_code": 200,
+        "expected": 200,
+        "elapsed_ms": 31,
+        "passed": true
+      },
+      {
+        "check": "event_type_filter_feedback",
+        "status_code": 200,
+        "expected": 200,
+        "elapsed_ms": 0,
+        "passed": true
+      },
+      {
+        "check": "literal_query",
+        "status_code": 200,
+        "expected": 200,
+        "elapsed_ms": 16,
+        "passed": true
+      },
+      {
+        "check": "invalid_limit_zero",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 0,
+        "passed": true
+      },
+      {
+        "check": "invalid_limit_high",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 0,
+        "passed": true
+      },
+      {
+        "check": "invalid_cursor",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 15,
+        "passed": true
+      },
+      {
+        "check": "invalid_event_type",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 0,
+        "passed": true
+      },
+      {
+        "check": "invalid_query_length",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 16,
+        "passed": true
+      },
+      {
+        "check": "invalid_uuid",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 0,
+        "passed": true
+      },
+      {
+        "check": "missing_prediction",
+        "status_code": 404,
+        "expected": 404,
+        "elapsed_ms": 16,
+        "passed": true
+      },
+      {
+        "check": "missing_route",
+        "status_code": 404,
+        "expected": 404,
+        "elapsed_ms": 15,
+        "passed": true
+      },
+      {
+        "check": "wrong_http_method",
+        "status_code": 405,
+        "expected": 405,
+        "elapsed_ms": 0,
+        "passed": true
+      },
+      {
+        "check": "reject_missing_hour",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 16,
+        "passed": true
+      },
+      {
+        "check": "reject_duplicate_hour",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 0,
+        "passed": true
+      },
+      {
+        "check": "reject_count_boolean",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 0,
+        "passed": true
+      },
+      {
+        "check": "reject_count_negative",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 0,
+        "passed": true
+      },
+      {
+        "check": "reject_count_fraction",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 15,
+        "passed": true
+      },
+      {
+        "check": "reject_count_too_large",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 16,
+        "passed": true
+      },
+      {
+        "check": "reject_timezone_aware_target",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 16,
+        "passed": true
+      },
+      {
+        "check": "reject_unknown_field",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 15,
+        "passed": true
+      },
+      {
+        "check": "malformed_json",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 0,
+        "passed": true
+      },
+      {
+        "check": "invalid_idempotency_key",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 16,
+        "passed": true
+      },
+      {
+        "check": "reject_feedback_actual_count_True",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 16,
+        "passed": true
+      },
+      {
+        "check": "reject_feedback_actual_count_-1",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 15,
+        "passed": true
+      },
+      {
+        "check": "reject_feedback_correctness_false",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 16,
+        "passed": true
+      },
+      {
+        "check": "reject_feedback_actual_stage_invalid",
+        "status_code": 422,
+        "expected": 422,
+        "elapsed_ms": 0,
+        "passed": true
+      },
+      {
+        "check": "missing_prediction_feedback",
+        "status_code": 404,
+        "expected": 404,
+        "elapsed_ms": 31,
+        "passed": true
+      },
+      {
+        "check": "rejected_requests_created_no_events",
+        "status_code": 200,
+        "expected": 200,
+        "elapsed_ms": 31,
+        "passed": true
+      },
+      {
+        "check": "rejected_prediction_still_absent",
+        "status_code": 404,
+        "expected": 404,
+        "elapsed_ms": 32,
+        "passed": true
+      },
+      {
+        "check": "module_mime_app.mjs",
+        "status_code": 200,
+        "expected": 200,
+        "elapsed_ms": 15,
+        "passed": true
+      },
+      {
+        "check": "module_mime_feedback.mjs",
+        "status_code": 200,
+        "expected": 200,
+        "elapsed_ms": 16,
+        "passed": true
+      },
+      {
+        "check": "openapi",
+        "status_code": 200,
+        "expected": 200,
+        "elapsed_ms": 47,
+        "passed": true
+      },
+      {
+        "check": "final_health",
+        "status_code": 200,
+        "expected": 200,
+        "elapsed_ms": 15,
+        "passed": true
+      }
+    ],
+    "errors": [],
+    "note": "No deployment, restart, AWS call or valid prediction/feedback mutation performed. Existing events read only."
+  },
+  "browser": "Codex in-app browser",
+  "browser_checks_passed": [
+    "sample_prediction",
+    "csv_download_upload_prediction",
+    "invalid_history_blocked",
+    "invalid_prediction_id_blocked",
+    "actual_count_feedback",
+    "correctness_false_feedback",
+    "actual_stage_feedback",
+    "refresh_and_id_lookup",
+    "event_id_filter",
+    "event_detail_json",
+    "event_json_download",
+    "feedback_lookup_disabled_while_saving_and_restored",
+    "post_deploy_prediction_and_feedback"
+  ],
+  "browser_console_warnings_or_errors": [],
+  "original_prediction_event_preserved_after_deploy": true,
+  "deployed_feedback_module_matches_source_and_http": true,
+  "history_test_prediction_id": "bba0e4a6-5433-4d35-987c-989452fc717e",
+  "final_demo_prediction_id": "d951aba1-f02a-4e2f-b2f3-58bd1ad6390d",
+  "final_demo_feedback": {
+    "event": {
+      "schema_version": 1,
+      "event_type": "feedback",
+      "event_id": "4b7ec9ee-323a-43fa-aab9-22c8285fd520",
+      "prediction_id": "d951aba1-f02a-4e2f-b2f3-58bd1ad6390d",
+      "recorded_at": "2026-11-16T07:06:03.584861Z",
+      "revision": 1,
+      "data_source": "demo",
+      "submission": {
+        "submission_id": "4b7ec9ee-323a-43fa-aab9-22c8285fd520",
+        "feedback": {
+          "kind": "actual_count",
+          "value": 0
+        }
+      },
+      "actual_stage": "idle",
+      "is_correct": true
+    },
+    "log_status": "local"
+  },
+  "screenshots_sha256": {
+    "browser-prediction-final-20261116.jpg": "0cc4a98a3b8777a893ac546c20ac57e73489ca500027f7b20620eccc825f94b5",
+    "browser-feedback-final-20261116.jpg": "e69b2af7480b16b9d2bd537fbe52c631f97033fd355bf040d15bb14996c7ac11",
+    "browser-logs-final-20261116.jpg": "4d78e3c9aaff5bec502942415130a4a61bb895e1f61ef93ebd308e4a7d164f34"
+  },
+  "aws_existing_service": {
+    "base_url": "http://127.0.0.1:8001",
+    "health": "ready",
+    "destination": "cloudwatch",
+    "last_error": "LoginRefreshRequired",
+    "sent_events": 11,
+    "pending_events": 9,
+    "failed_events": 1,
+    "remote_delivery_reverified": false
+  },
+  "human_teammate_deployment": "not_verified"
+}
+
