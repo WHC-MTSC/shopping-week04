@@ -221,14 +221,17 @@ def make_rows(
             for _, feedback in labelled
             if isinstance(feedback.submission.feedback, CountFeedback)
         }
-        # A T/F judgment cannot contradict an explicit outcome for the identical input.
-        # Check consistency without inferring a supervised label from a T/F-only group.
-        conflicting_reward = any(
-            feedback.is_correct != (prediction.response.workload_stage == label)
-            for prediction, feedback in group
-            for label in labels
+        # All latest answers must permit at least one shared actual stage, even for T/F only.
+        # Feasibility never supplies a supervised label without an explicit count or stage.
+        has_consistent_stage = any(
+            (not labels or labels == {stage})
+            and all(
+                feedback.is_correct == (prediction.response.workload_stage == stage)
+                for prediction, feedback in group
+            )
+            for stage in STAGES
         )
-        if len(labels) > 1 or len(counts) > 1 or conflicting_reward:
+        if len(counts) > 1 or not has_consistent_stage:
             quarantine.extend(
                 QuarantineRow(reason="conflicting_input_truth", event=feedback)
                 for _, feedback in group

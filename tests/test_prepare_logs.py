@@ -14,6 +14,7 @@ from workload.log_models import (
     FeedbackEvent,
     FeedbackRequest,
     PredictionEvent,
+    Stage,
     StageFeedback,
 )
 from workload.prepare_logs import PreparationError, RewardRow, SupervisedRow, prepare
@@ -226,3 +227,69 @@ def test_correctness_conflicting_with_same_input_actual_truth_is_quarantined(
     assert result.counts["supervised_rows"] == 0
     assert result.counts["reward_rows"] == 0
     assert result.quarantine_reasons == {"conflicting_input_truth": 2}
+
+
+@pytest.mark.parametrize(
+    ("judgments", "quarantined"),
+    [
+        ([("idle", True), ("idle", False)], True),
+        ([("idle", True), ("busy", True)], True),
+        ([("idle", False), ("normal", False), ("busy", False)], True),
+        ([("idle", True), ("busy", False)], False),
+        ([("idle", False), ("normal", False)], False),
+        ([("idle", True), ("idle", True)], False),
+    ],
+)
+def test_synthetic_tf_only_groups_require_consistent_truth_without_inferring_labels(
+    tmp_path: Path, judgments: list[tuple[Stage, bool]], *, quarantined: bool
+) -> None:
+    events: list[Event] = []
+    for action, correct in judgments:
+        event = prediction()
+        event = event.model_copy(
+            update={
+                "response": event.response.model_copy(
+                    update={
+                        "workload_stage": action,
+                        "stage_range": STAGE_RANGES[STAGES.index(action)],
+                        "probabilities": tuple(float(stage == action) for stage in STAGES),
+                        "model_version": f"synthetic-{action}",
+                    }
+                )
+            }
+        )
+        events.extend((event, truth(event, correct)))
+    source = tmp_path / "input.jsonl"
+    write_events(source, events)
+    result = prepare(source, tmp_path / "out")
+    assert result.counts["supervised_rows"] == 0
+    assert result.counts["reward_rows"] == (0 if quarantined else len(judgments))
+    assert result.quarantine_reasons == (
+        {"conflicting_input_truth": len(judgments)} if quarantined else {}
+    )
+
+
+@pytest.mark.parametrize("latest_correct", [True, False])
+def test_tf_group_consistency_uses_only_latest_revision(
+    tmp_path: Path, *, latest_correct: bool
+) -> None:
+    first, second = prediction(), prediction()
+    old = truth(first, not latest_correct)
+    latest = truth(first, latest_correct, revision=2)
+    other = truth(second, value=False)
+    source = tmp_path / "input.jsonl"
+    # Export order does not define which correction is current.
+    write_events(source, [latest, first, other, second, old])
+    result = prepare(source, tmp_path / "out")
+    assert result.counts["supervised_rows"] == 0
+    if latest_correct:
+        assert result.quarantine_reasons == {"conflicting_input_truth": 2}
+        assert result.counts["reward_rows"] == 0
+    else:
+        assert result.quarantine_reasons == {}
+        rows = [
+            RewardRow.model_validate_json(line)
+            for line in (tmp_path / "out/rewards.jsonl").read_text().splitlines()
+        ]
+        assert {row.feedback_id for row in rows} == {latest.event_id, other.event_id}
+        assert all(row.reward == 0 for row in rows)

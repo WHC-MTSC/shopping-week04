@@ -46,11 +46,13 @@
           <form id="forecast-form">
             <label class="field-label" for="target-hour">예측 시작 시각 <span>원본 영국 현지 시각</span></label>
             <input id="target-hour" name="target_hour" type="datetime-local" step="3600" min="0001-01-08T00:00" max="9999-12-31T23:00" required aria-describedby="target-help">
-            <p id="target-help" class="field-help">정각만 입력 가능. 해당 시각부터 1시간을 예측합니다.</p>
-            <div class="label-row"><label class="field-label" for="history">직전 168시간 이력</label><button id="download-example" type="button" class="text-button">CSV 예시 ↓</button></div>
+            <p id="target-help" class="field-help">전체 CSV를 불러오면 처음 예측 가능한 시각을 선택합니다. 선택한 시각 직전 168시간은 자동으로 추출합니다.</p>
+            <div class="hour-navigation" role="group" aria-label="예측 시각 이동"><button id="previous-hour" type="button" disabled>← 이전 1시간</button><button id="next-hour" type="button" disabled>다음 1시간 →</button><button id="latest-hour" type="button" disabled>마지막 시각</button></div>
+            <p id="navigation-note" class="field-help">CSV를 불러오면 가능한 시간 안에서 이동할 수 있습니다.</p>
+            <div class="label-row"><label class="field-label" for="history">판매전표 이력 CSV</label><button id="download-example" type="button" class="text-button">전체 CSV 예시 ↓</button></div>
             <div class="upload-box"><span class="upload-icon" aria-hidden="true">↑</span><div><label for="csv-file">CSV 파일 불러오기</label><small id="file-name">hour, count 열 · 최대 1 MB</small></div><input id="csv-file" type="file" accept=".csv,text/csv" aria-label="판매전표 CSV 파일 선택"></div>
-            <details id="csv-editor"><summary>직접 입력 / 수정</summary><textarea id="history" spellcheck="false" aria-label="판매전표 CSV 내용" aria-describedby="csv-help" placeholder="hour,count&#10;2011-09-20T06:00:00,0&#10;2011-09-20T07:00:00,0&#10;…" rows="7"></textarea></details>
-            <p id="csv-help" class="field-help">168시간 전부터 1시간 전까지 오름차순. 누락·중복 없이, 시간별 양수 판매전표 건수를 0~100,000의 정수로 입력합니다. 상품 수량이나 매출액이 아닙니다.</p>
+            <details id="csv-editor"><summary>전체 CSV 보기 / 수정</summary><textarea id="history" spellcheck="false" aria-label="판매전표 CSV 내용" aria-describedby="csv-help" placeholder="hour,count&#10;2011-09-20T06:00:00,0&#10;2011-09-20T07:00:00,0&#10;…" rows="7"></textarea></details>
+            <p id="csv-help" class="field-help">168행 이상인 전체 파일을 그대로 올리세요. 시간은 누락·중복 없이 오름차순, 시간별 양수 판매전표 건수는 0~100,000의 정수여야 합니다. 선택한 시각 및 이후의 행은 모델 입력에서 제외합니다.</p>
             <label class="field-label" for="data-source">데이터 출처</label>
             <select id="data-source" class="data-source-select" aria-describedby="source-help"><option value="demo" selected>실습·테스트 데이터 (학습 대상 제외)</option><option value="user">확인된 실제 판매 집계</option></select>
             <p id="source-help" class="field-help">샘플·가상값·과거 데이터 재생은 실습으로 남기세요. 실제 집계일 때만 실데이터로 선택합니다.</p>
@@ -62,7 +64,7 @@
         </section>
         <section class="card result-card" aria-labelledby="result-title">
           <div class="card-heading"><div><span class="section-kicker">B / OUTPUT</span><h2 id="result-title">예측 결과</h2></div><span class="tag dark">1h</span></div>
-          <div id="result-empty" class="result-empty"><div class="empty-art" aria-hidden="true"><span></span><span></span><span></span></div><h3>결과 없음</h3><p>이력을 입력한 뒤 예측을 실행하세요.</p></div>
+          <div id="result-empty" class="result-empty"><div class="empty-art" aria-hidden="true"><span></span><span></span><span></span></div><h3 id="result-empty-title">예측 대기</h3><p id="result-empty-message">이력을 입력한 뒤 예측을 실행하세요.</p></div>
           <div id="result" hidden aria-live="polite" aria-atomic="true">
             <p id="result-period" class="result-period"></p><div class="stage-line"><h3 id="result-stage"></h3><span id="result-range" class="stage-range"></span></div>
             <p id="result-action" class="result-action"></p>
@@ -77,6 +79,7 @@
       <section class="card feedback-card" aria-labelledby="feedback-title">
         <div class="card-heading"><div><span class="section-kicker">ACTUAL &amp; FEEDBACK</span><h2 id="feedback-title">실제 결과를 기록해 주세요</h2></div><button id="refresh-logs" class="text-button" type="button">저장 상태 새로고침 ↻</button></div>
         <p class="field-help">대상 시간이 끝난 뒤 실제 결과를 입력하세요. 예측 ID로 나중에 다시 조회할 수 있습니다. 정답을 수정하면 이전 기록도 이력으로 남습니다.</p>
+        <p class="field-help">정답은 아래 예측 ID의 시각에 저장됩니다. 위에서 시각을 바꿨다면 예측 실행을 눌러 새 결과를 만든 뒤 정답을 입력하세요.</p>
         <form id="prediction-lookup" class="lookup-row"><label for="prediction-id" class="field-label">예측 ID</label><input id="prediction-id" type="text" required autocomplete="off" placeholder="예측 후 자동 입력 · 저장한 ID로 다시 조회" pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"><button id="lookup-button" class="button secondary" type="submit">조회</button></form>
         <p id="feedback-context" class="field-help">예측을 실행하거나 기존 예측 ID를 조회하세요.</p><p id="prediction-delivery" class="field-help"></p>
         <form id="feedback-form" hidden>

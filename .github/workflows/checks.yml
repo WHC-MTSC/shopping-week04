@@ -20,7 +20,7 @@ jobs:
       - run: uv run basedpyright
       - run: uv run pytest -q
       - name: Check browser input contracts (Node 20+ on runner)
-        run: node --test tests/input.test.mjs
+        run: node --test tests/input.test.mjs tests/history-window.test.mjs
 
   windows-deployment:
     name: Windows local deployment smoke test

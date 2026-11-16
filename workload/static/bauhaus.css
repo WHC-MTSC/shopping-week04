@@ -169,6 +169,11 @@ textarea { border: 1px solid var(--ink); border-radius: 0; background: var(--pap
 .input-status { margin-top: 17px; min-height: 22px; color: var(--muted); font-size: 11px; }
 .input-status.valid { color: var(--blue); font-weight: 700; }
 .input-status.invalid { color: #a3271e; }
+.hour-navigation { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.hour-navigation button { min-height: 38px; padding: 7px 11px; border: 1px solid var(--ink); background: var(--paper, #f5f2e8); color: var(--ink); font-size: 11px; font-weight: 700; }
+.hour-navigation button:hover:not(:disabled) { background: var(--yellow, #f6d934); }
+.hour-navigation button:disabled { opacity: .4; cursor: not-allowed; }
+.hour-navigation button:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
 .error-message { padding: 11px 13px; border: 1px solid #a3271e; border-left-width: 5px; border-radius: 0; background: #fff2e9; color: #92271f; font-size: 12px; }
 .privacy-note { margin-top: 11px; color: var(--muted); font-size: 10px; }
 
