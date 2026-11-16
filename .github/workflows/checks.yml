@@ -28,7 +28,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     env:
-      HOURAHEAD_CI_ROOT: ${{ runner.temp }}\hourahead-recipient-${{ github.run_id }}-${{ github.run_attempt }}
+      HOURAHEAD_CI_NAME: hourahead-recipient-${{ github.run_id }}-${{ github.run_attempt }}
     defaults:
       run:
         shell: pwsh
@@ -49,7 +49,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $source = (Get-Location).Path
           $deploy = Join-Path $source 'scripts/deploy-local.ps1'
-          $install = $env:HOURAHEAD_CI_ROOT
+          $install = Join-Path $env:RUNNER_TEMP $env:HOURAHEAD_CI_NAME
           if (Test-Path -LiteralPath $install) { throw 'Recipient installation must start in a new directory.' }
           $parameters = @{ SourcePath = $source; InstallRoot = $install; Port = 18001; Backend = 'local' }
           $acceptance = Join-Path $env:RUNNER_TEMP 'hourahead-acceptance.json'
@@ -119,7 +119,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $deploy = Join-Path (Get-Location).Path 'scripts/deploy-local.ps1'
-          $install = $env:HOURAHEAD_CI_ROOT
+          $install = Join-Path $env:RUNNER_TEMP $env:HOURAHEAD_CI_NAME
           if ((Test-Path -LiteralPath $deploy) -and (Test-Path -LiteralPath $install)) {
             & $deploy -Action Stop -InstallRoot $install
             $snapshot = & $deploy -Action Status -InstallRoot $install
