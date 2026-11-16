@@ -112,7 +112,7 @@ uv run --locked uvicorn workload.api:app --host 127.0.0.1 --port 8000
 - `GET /docs`: OpenAPI 사용 예시
 
 ```bash
-curl -H "Content-Type: application/json" --data-binary @examples/request.json http://127.0.0.1:8000/predict
+curl -H "Content-Type: application/json" -H "X-Data-Source: demo" --data-binary @examples/request.json http://127.0.0.1:8000/predict
 ```
 
 `examples/response.json`은 모델 출력 핵심 필드 예시입니다. 실제 API는 실행마다 생성되는 `prediction_id`, `recorded_at`, `log_status`를 추가로 반환합니다. 확률은 보정되지 않은 앙상블 확률이며 예측의 보장된 신뢰도로 해석하면 안 됩니다.
@@ -133,7 +133,7 @@ curl -H "Content-Type: application/json" --data-binary @examples/request.json ht
 | `actual_stage` | `idle`, `normal`, `busy` | 실제 작업량 단계와 예측 비교 |
 | `correctness` | JSON `true` 또는 `false` | 사용자의 예측 정오 판정; 실제 단계는 `null` |
 
-T/F를 실제값이나 건수로 취급하지 않습니다. 정답 제출은 `submission_id` UUID로 중복을 방지하고, 수정은 새 UUID로 추가 기록합니다. 피드백의 `revision`은 예측별로 증가하므로 S3에서 가장 큰 revision을 최종 정답으로 사용할 수 있습니다. `POST /predict`의 선택적 `Idempotency-Key` UUID 헤더도 같은 요청의 중복 기록을 방지합니다. 같은 키를 다른 내용에 재사용하면 `409`입니다. `X-Data-Source: demo` 헤더로 과거 샘플을 구분합니다.
+T/F를 실제값이나 건수로 취급하지 않습니다. 정답 제출은 `submission_id` UUID로 중복을 방지하고, 수정은 새 UUID로 추가 기록합니다. 피드백의 `revision`은 예측별로 증가하므로 S3에서 가장 큰 revision을 최종 정답으로 사용할 수 있습니다. `POST /predict`의 선택적 `Idempotency-Key` UUID 헤더도 같은 요청의 중복 기록을 방지합니다. 같은 키를 다른 내용에 재사용하면 `409`입니다. API에서 출처 헤더를 생략하면 `user`로 기록하므로 과거 샘플·테스트 요청에는 반드시 `X-Data-Source: demo`를 지정합니다.
 
 설정을 생략하고 S3 버킷도 지정하지 않으면 SQLite에 로컬 보관합니다. `WORKLOAD_LOG_BACKEND=local-s3`는 실제 JSON 객체 파일을 로컬에 생성합니다. 실제 AWS에는 `WORKLOAD_LOG_BACKEND=s3`와 `WORKLOAD_S3_BUCKET`을 지정합니다. 상태는 `local`(로컬 보관), `pending`(대기/재시도), `simulated`(모사 객체 저장 완료), `sent`(실제 S3 확인 완료)로 구분합니다. 로컬 저장이 실패하면 `503`으로 응답하며 저장 완료로 표시하지 않습니다. S3 전송은 이벤트별 JSON 객체를 사용하고 `IfNoneMatch="*"`로 같은 이벤트 키의 덮어쓰기를 막습니다.
 

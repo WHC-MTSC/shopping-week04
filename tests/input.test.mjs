@@ -87,10 +87,10 @@ test("feedback selection and delayed responses preserve the active prediction's 
   const b = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
   const c = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
   const forecast = id => ({ prediction_id: id, target_hour: "2011-09-27T06:00:00", workload_stage: "idle", log_status: "local" });
-  const receipt = (id, count) => ({
-    event: { prediction_id: id, submission: { feedback: { kind: "actual_count", value: count } },
+  const receipt = (id, count, revision = count + 1, status = "local") => ({
+    event: { prediction_id: id, revision, submission: { feedback: { kind: "actual_count", value: count } },
       actual_stage: count === 0 ? "idle" : "normal", is_correct: count === 0, recorded_at: "2026-10-26T08:00:00Z" },
-    log_status: "local",
+    log_status: status,
   });
   const detail = (id, latest = null) => ({
     event: { prediction_id: id, response: forecast(id), data_source: "user" },
@@ -187,17 +187,104 @@ test("feedback selection and delayed responses preserve the active prediction's 
       });
     }
 
+    await t.test("late refresh cannot overwrite a newer revision or completed delivery", async () => {
+      const oldRefresh = element("refresh-logs").emit("click");
+      await settle();
+      const oldRead = take(`/predictions/${c}`);
+      const newRefresh = element("refresh-logs").emit("click");
+      await settle();
+      const newRead = take(`/predictions/${c}`);
+      newRead.resolve(response({ ...detail(c, receipt(c, 13, 21, "sent")), log_status: "sent" }));
+      await newRefresh;
+      oldRead.resolve(response({ ...detail(c, receipt(c, 12, 20, "pending")), log_status: "pending" }));
+      await oldRefresh;
+      assert.match(element("feedback-result").textContent, /실제 13건.*실제 S3 저장 완료/);
+      assert.equal(element("prediction-delivery").textContent, "실제 S3 저장 완료");
+    });
+
+    await t.test("a newer correction retires only the completed submission token", async () => {
+      element("feedback-count").value = "14";
+      await element("feedback-form").emit("input");
+      const save = element("feedback-form").emit("submit");
+      const first = take(`/predictions/${c}/feedback`);
+      const firstId = JSON.parse(first.options.body).submission_id;
+      first.resolve(response(receipt(c, 14, 22)));
+      await save;
+      const duplicateSave = element("feedback-form").emit("submit");
+      const duplicate = take(`/predictions/${c}/feedback`);
+      const duplicateId = JSON.parse(duplicate.options.body).submission_id;
+      duplicate.resolve(response(receipt(c, 14, 22)));
+      await duplicateSave;
+      assert.equal(duplicateId, firstId, "An immediate unchanged resubmission remains idempotent");
+      const refresh = element("refresh-logs").emit("click");
+      await settle();
+      take(`/predictions/${c}`).resolve(response(detail(c, receipt(c, 15, 23))));
+      await refresh;
+      assert.match(element("feedback-result").textContent, /실제 15건/);
+      assert.equal(element("feedback-count").value, "14", "Keep the user's unsaved form value");
+      const correctionSave = element("feedback-form").emit("submit");
+      const correction = take(`/predictions/${c}/feedback`);
+      const correctionId = JSON.parse(correction.options.body).submission_id;
+      correction.resolve(response(receipt(c, 14, correctionId === firstId ? 22 : 24)));
+      await correctionSave;
+      assert.notEqual(correctionId, firstId, "Saving after observing a newer revision must create a correction");
+      assert.match(element("feedback-result").textContent, /실제 14건/);
+    });
+
+    await t.test("uncertain save retries keep their token without replacing a newer correction", async () => {
+      element("feedback-count").value = "16";
+      await element("feedback-form").emit("input");
+      const lostSave = element("feedback-form").emit("submit");
+      const lost = take(`/predictions/${c}/feedback`);
+      const lostId = JSON.parse(lost.options.body).submission_id;
+      lost.reject(new Error("response lost after server commit"));
+      await lostSave;
+      const refresh = element("refresh-logs").emit("click");
+      await settle();
+      take(`/predictions/${c}`).resolve(response(detail(c, receipt(c, 17, 26))));
+      await refresh;
+      const retrySave = element("feedback-form").emit("submit");
+      const retry = take(`/predictions/${c}/feedback`);
+      const retryId = JSON.parse(retry.options.body).submission_id;
+      retry.resolve(response(receipt(c, 16, 25)));
+      await retrySave;
+      assert.equal(retryId, lostId, "Unknown outcomes must retry the same request, even after another correction");
+      assert.match(element("feedback-result").textContent, /실제 17건/, "The old idempotency receipt is not the latest truth");
+      const correctionSave = element("feedback-form").emit("submit");
+      const correction = take(`/predictions/${c}/feedback`);
+      const correctionId = JSON.parse(correction.options.body).submission_id;
+      correction.resolve(response(receipt(c, 16, 27)));
+      await correctionSave;
+      assert.notEqual(correctionId, lostId, "Once acknowledged, the obsolete request can be replaced");
+      assert.match(element("feedback-result").textContent, /실제 16건/);
+    });
+
+    await t.test("a superseded refresh failure cannot cover a successful latest refresh", async () => {
+      const oldRefresh = element("refresh-logs").emit("click");
+      await settle();
+      const oldRead = take(`/predictions/${c}`);
+      const newRefresh = element("refresh-logs").emit("click");
+      await settle();
+      take(`/predictions/${c}`).resolve(response(detail(c, receipt(c, 16, 27))));
+      await newRefresh;
+      oldRead.reject(new Error("late failure"));
+      await oldRefresh;
+      assert.equal(element("feedback-error").hidden, true);
+      assert.match(element("feedback-result").textContent, /실제 16건/);
+    });
+
     element("feedback-count").value = "2";
     await element("feedback-form").emit("input");
     const oldSave = element("feedback-form").emit("submit");
     const oldSubmission = take(`/predictions/${c}/feedback`);
     recordPrediction(forecast(a), "user");
-    take(`/predictions/${a}`).resolve(response(detail(a)));
+    take(`/predictions/${a}`).resolve(response(detail(a, receipt(a, 0, 1))));
     oldSubmission.resolve(response(receipt(c, 2)));
     await oldSave;
     await settle();
     assert.equal(element("prediction-id").value, a);
     assert.doesNotMatch(element("feedback-result").textContent, /실제 2건/);
+    assert.match(element("feedback-result").textContent, /실제 0건/, "A different prediction starts its own revision sequence");
     assert.equal(element("save-feedback").disabled, false);
     assert.equal(element("prediction-id").disabled, false);
     assert.equal(element("lookup-button").disabled, false);
