@@ -1,6 +1,5 @@
 import asyncio
 import hashlib
-import mimetypes
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -12,7 +11,6 @@ from uuid import UUID, uuid4
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 from workload.artifact import STAGE_RANGES, STAGES, ForestArtifact, TrainingPurpose
@@ -22,10 +20,14 @@ from workload.log_models import PredictionEvent, RecordedForecast
 from workload.log_routes import log_router, register_log_errors
 from workload.log_store import LogStore
 from workload.schemas import ForecastRequest, ForecastResponse, FrozenModel, HealthResponse
+from workload.web_assets import mount_dashboard
 
 DEFAULT_MODEL_PATH: Final = Path(__file__).resolve().parents[1] / "artifacts/model.json"
 STATIC_PATH: Final = Path(__file__).resolve().parent / "static"
 EXAMPLE_PATH: Final = Path(__file__).resolve().parents[1] / "examples/request.json"
+HISTORY_CSV_PATH: Final = (
+    Path(__file__).resolve().parents[1] / "examples/team-test/full-history.csv"
+)
 
 
 class MetadataResponse(FrozenModel):
@@ -153,21 +155,22 @@ def create_app(
         version="0.1.0",
         lifespan=lifespan,
     )
-    # Windows registry mappings can otherwise serve ES modules as text/plain.
-    mimetypes.add_type("text/javascript", ".mjs")
-    application.mount("/static", StaticFiles(directory=STATIC_PATH), name="static")
-
-    @application.get("/", response_class=FileResponse, include_in_schema=False)
-    def dashboard() -> FileResponse:
-        return FileResponse(STATIC_PATH / "index.html", headers={"Cache-Control": "no-cache"})
-
-    @application.get("/log-console", response_class=FileResponse, include_in_schema=False)
-    def log_console() -> FileResponse:
-        return FileResponse(STATIC_PATH / "logs.html", headers={"Cache-Control": "no-cache"})
+    mount_dashboard(application, STATIC_PATH)
 
     @application.get("/example", summary="화면 체험용 과거 입력 데이터")
     def example() -> ForecastRequest:
         return ForecastRequest.model_validate_json(EXAMPLE_PATH.read_text(encoding="utf-8"))
+
+    @application.get("/example/history.csv", summary="시간을 선택해 체험하는 전체 과거 집계 CSV")
+    def example_history() -> FileResponse:
+        if not HISTORY_CSV_PATH.is_file():
+            raise HTTPException(status_code=404, detail="Example history CSV is not available")
+        return FileResponse(
+            HISTORY_CSV_PATH,
+            media_type="text/csv",
+            filename="hourahead-full-history.csv",
+            headers={"Cache-Control": "no-store"},
+        )
 
     _ = application.exception_handler(RequestValidationError)(validation_error_handler)
     register_log_errors(application)

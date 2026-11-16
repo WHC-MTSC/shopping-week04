@@ -52,7 +52,7 @@ try {
         [IO.File]::WriteAllText($reportFile, $reportJson, $utf8)
         if ($case -eq 'missing-report') { [IO.File]::Delete($reportFile) }
         $rejected = $false
-        try { & $DeployScript -Action Deploy -ModelPath $model }
+        try { & $DeployScript -Action Deploy -InstallRoot (Join-Path $fixture 'installation') -ModelPath $model }
         catch {
             if ($_.Exception.Message -notlike 'Candidate model rejected:*') { throw }
             $rejected = $true

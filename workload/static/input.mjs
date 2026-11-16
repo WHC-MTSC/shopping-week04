@@ -22,28 +22,48 @@ export function parseHistoryCSV(text) {
     throw new Error("첫 줄은 hour,count여야 합니다. CSV 예시를 다운로드해 형식을 확인하세요.");
   }
   const rows = lines.slice(1);
-  if (rows.length !== HISTORY_HOURS) throw new Error(`이력은 168행이어야 합니다. 현재 ${rows.length}행입니다.`);
+  if (rows.length < HISTORY_HOURS) throw new Error(`데이터 부족: 최소 168시간의 이력이 필요합니다. 현재 ${rows.length}행입니다.`);
+  let previousHour = null;
   return rows.map((line, index) => {
     const columns = line.split(",").map(part => part.trim());
     if (columns.length !== 2) throw new Error(`${index + 2}행: hour,count 두 열만 입력하세요. 따옴표 없이 입력하세요.`);
-    const hour = parseHour(columns[0], `${index + 2}행 시각`).normalized;
+    const parsed = parseHour(columns[0], `${index + 2}행 시각`);
+    if (previousHour !== null && parsed.milliseconds !== previousHour + HOUR_MS) {
+      throw new Error(`${index + 2}행: 이력 시각은 바로 앞 행보다 1시간 뒤여야 합니다. 누락·중복·역순을 확인하세요.`);
+    }
+    previousHour = parsed.milliseconds;
     if (!/^\d+$/.test(columns[1]) || Number(columns[1]) > 100000) {
       throw new Error(`${index + 2}행: 건수는 0~100,000의 정수여야 합니다.`);
     }
-    return { hour, count: Number(columns[1]) };
+    return { hour: parsed.normalized, count: Number(columns[1]) };
   });
 }
 
-export function makeRequest(targetText, csvText) {
-  const target = parseHour(targetText, "예측 시작 시각");
+export function inspectHistoryCSV(csvText) {
   const history = parseHistoryCSV(csvText);
-  history.forEach((row, index) => {
-    const expected = target.milliseconds - (HISTORY_HOURS - index) * HOUR_MS;
-    if (parseHour(row.hour).milliseconds !== expected) {
-      throw new Error(`${index + 2}행: 예측 시작 168시간 전부터 1시간 전까지 오름차순으로 입력하세요. 빠진 시간·중복·예측 대상 시간은 포함할 수 없습니다.`);
-    }
-  });
-  return { target_hour: target.normalized, history };
+  const firstTarget = new Date(parseHour(history[0].hour).milliseconds + HISTORY_HOURS * HOUR_MS).toISOString();
+  const nextHour = new Date(parseHour(history.at(-1).hour).milliseconds + HOUR_MS).toISOString();
+  if (!/^\d{4}-/.test(nextHour)) throw new Error("이력 다음 예측 시각은 9999년 이내여야 합니다.");
+  return { history, first_target_hour: firstTarget.slice(0, 19), last_target_hour: nextHour.slice(0, 19) };
+}
+
+export function requestFromCSV(csvText) {
+  const inspected = inspectHistoryCSV(csvText);
+  return { target_hour: inspected.last_target_hour, history: inspected.history.slice(-HISTORY_HOURS) };
+}
+
+export function makeRequest(targetText, csvText) {
+  const { history, first_target_hour: first, last_target_hour: last } = inspectHistoryCSV(csvText);
+  const target = parseHour(targetText, "예측 시작 시각");
+  if (target.milliseconds < parseHour(first).milliseconds || target.milliseconds > parseHour(last).milliseconds) {
+    const display = hour => hour.slice(0, 16).replace("T", " ");
+    const range = first === last
+      ? `현재 이력에 맞는 예측 시각은 ${display(first)}입니다.`
+      : `현재 이력으로 예측 가능한 시각은 ${display(first)} ~ ${display(last)}입니다.`;
+    throw new Error(`데이터 부족: ${range} 선택한 시각 직전 168시간의 실제 이력을 불러오세요.`);
+  }
+  const end = (target.milliseconds - parseHour(history[0].hour).milliseconds) / HOUR_MS;
+  return { target_hour: target.normalized, history: history.slice(end - HISTORY_HOURS, end) };
 }
 
 export function toCSV(history) {
