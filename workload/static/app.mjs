@@ -1,4 +1,4 @@
-import { makeRequest, toCSV, HOUR_MS, MAX_FILE_BYTES, parseHour } from "./input.mjs";
+import { makeRequest, requestFromCSV, toCSV, HOUR_MS, MAX_FILE_BYTES, parseHour } from "./input.mjs";
 import { recordPrediction } from "./feedback.mjs";
 
 const $ = id => document.getElementById(id);
@@ -35,9 +35,14 @@ function invalidateResult() {
   showError();
 }
 
-function checkInput() {
+function checkInput({ alignTarget = false } = {}) {
   const status = $("input-status");
+  $("target-help").textContent = "연속된 168시간 이력이 필요합니다. CSV 파일을 불러오면 마지막 관측 다음 정각으로 예측 시각을 맞춥니다.";
   try {
+    const inferred = requestFromCSV(historyInput.value);
+    if (alignTarget) targetInput.value = inferred.target_hour.slice(0, 16);
+    const display = hour => hour.slice(0, 16).replace("T", " ");
+    $("target-help").textContent = `현재 이력: ${display(inferred.history[0].hour)} ~ ${display(inferred.history.at(-1).hour)} · 예측 가능한 시각: ${display(inferred.target_hour)} (원본 현지 시각). 다른 시각은 그 직전 168시간의 실제 이력이 필요합니다.`;
     const request = makeRequest(targetInput.value, historyInput.value);
     status.textContent = "검증 완료 · 연속 168시간";
     status.className = "input-status valid";
@@ -174,6 +179,7 @@ $("csv-file").addEventListener("change", async event => {
   invalidateResult();
   setBusy(true);
   historyInput.value = "";
+  targetInput.value = "";
   source = sourceInput.value;
   $("source-badge").textContent = source === "demo" ? "CSV · 실습" : "CSV · 실제 집계";
   $("file-name").textContent = file.name;
@@ -181,7 +187,7 @@ $("csv-file").addEventListener("change", async event => {
   try {
     if (file.size > MAX_FILE_BYTES) throw new Error("CSV 파일은 1 MB 이하여야 합니다.");
     historyInput.value = await file.text();
-    checkInput();
+    checkInput({ alignTarget: true });
   } catch (error) { showError(error.message); }
   finally { event.target.value = ""; setBusy(false); }
 });
@@ -208,7 +214,8 @@ form.addEventListener("submit", async event => {
   showError();
   const submittedRevision = revision;
   try {
-    const payload = makeRequest(targetInput.value, historyInput.value);
+    const payload = checkInput();
+    if (!payload) return;
     setBusy(true);
     $("predict-button").textContent = "예측 중…";
     predictionKey ||= crypto.randomUUID();

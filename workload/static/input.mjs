@@ -34,15 +34,24 @@ export function parseHistoryCSV(text) {
   });
 }
 
-export function makeRequest(targetText, csvText) {
-  const target = parseHour(targetText, "예측 시작 시각");
+export function requestFromCSV(csvText) {
   const history = parseHistoryCSV(csvText);
   history.forEach((row, index) => {
-    const expected = target.milliseconds - (HISTORY_HOURS - index) * HOUR_MS;
-    if (parseHour(row.hour).milliseconds !== expected) {
-      throw new Error(`${index + 2}행: 예측 시작 168시간 전부터 1시간 전까지 오름차순으로 입력하세요. 빠진 시간·중복·예측 대상 시간은 포함할 수 없습니다.`);
+    if (index && parseHour(row.hour).milliseconds !== parseHour(history[index - 1].hour).milliseconds + HOUR_MS) {
+      throw new Error(`${index + 2}행: 이력 시각은 바로 앞 행보다 1시간 뒤여야 합니다. 누락·중복·역순을 확인하세요.`);
     }
   });
+  const nextHour = new Date(parseHour(history.at(-1).hour).milliseconds + HOUR_MS).toISOString();
+  if (!/^\d{4}-/.test(nextHour)) throw new Error("이력 다음 예측 시각은 9999년 이내여야 합니다.");
+  return { target_hour: nextHour.slice(0, 19), history };
+}
+
+export function makeRequest(targetText, csvText) {
+  const { target_hour: expected, history } = requestFromCSV(csvText);
+  const target = parseHour(targetText, "예측 시작 시각");
+  if (target.normalized !== expected) {
+    throw new Error(`현재 이력에 맞는 예측 시각은 ${expected.slice(0, 16).replace("T", " ")}입니다. 다른 시각을 예측하려면 그 직전 168시간의 실제 이력을 불러오세요.`);
+  }
   return { target_hour: target.normalized, history };
 }
 

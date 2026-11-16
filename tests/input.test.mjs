@@ -1,11 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { makeRequest, makeFeedback, parseHistoryCSV, parseHour, toCSV } from "../workload/static/input.mjs";
+import { makeRequest, requestFromCSV, makeFeedback, parseHistoryCSV, parseHour, toCSV } from "../workload/static/input.mjs";
 import { buildLogQuery, eventSummary, formatEventTime, storageLabel } from "../workload/static/logs.mjs";
 
 const example = JSON.parse(await readFile(new URL("../examples/request.json", import.meta.url), "utf8"));
 const csv = toCSV(example.history);
+const historyFor = target => Array.from({ length: 168 }, (_, index) => ({
+  hour: new Date(parseHour(target).milliseconds - (168 - index) * 3600000).toISOString().slice(0, 19),
+  count: index % 20,
+}));
 
 test("sample CSV round-trip preserves every timestamp and count", () => {
   assert.deepEqual(makeRequest(example.target_hour, csv), example);
@@ -17,6 +21,31 @@ test("timezone-free arithmetic preserves midnight and year boundaries", () => {
     assert.equal(parseHour(value).normalized, value);
   }
   assert.equal(parseHour("2011-09-27 06:00:00").normalized, example.target_hour);
+});
+
+test("continuous CSV infers the next hour across year, leap-day, and minimum-year boundaries", () => {
+  for (const target of ["2025-01-01T00:00:00", "2024-03-01T00:00:00", "0001-01-08T00:00:00"]) {
+    const history = historyFor(target);
+    assert.deepEqual(requestFromCSV(toCSV(history)), { target_hour: target, history });
+  }
+});
+
+test("target inference rejects missing, duplicate, gapped, reversed and overflowing histories", () => {
+  const history = example.history;
+  for (const invalid of [history.slice(1), [history[0], ...history.slice(0, -1)], [...history].reverse(),
+    [...history.slice(0, 50), ...history.slice(51), { hour: example.target_hour, count: 0 }]]) {
+    assert.throws(() => requestFromCSV(toCSV(invalid)));
+  }
+  const last = historyFor("9999-12-31T23:00:00");
+  assert.throws(() => requestFromCSV(toCSV([...last.slice(1), { hour: "9999-12-31T23:00:00", count: 0 }])));
+});
+
+test("a target-only mismatch explains the compatible hour instead of blaming CSV row 2", () => {
+  assert.throws(() => makeRequest("2011-09-27T07:00:00", csv), error => {
+    assert.match(error.message, /현재 이력에 맞는 예측 시각은 2011-09-27 06:00/);
+    assert.doesNotMatch(error.message, /2행/);
+    return true;
+  });
 });
 
 for (const invalid of ["2011-09-27T06:00:00Z", "2011-09-27T06:00:00+09:00", "2011-09-27T06:30:00", "2011-02-29T00:00:00", "2011-02-30T00:00:00", "2011-09-27T24:00:00", "0000-01-08T00:00:00", "invalid"]) {
@@ -392,7 +421,7 @@ test("forecast source requires an explicit real-data choice and sample loading r
       if (path === "/logging") return response({ destination: "local", pending_events: 0 });
       if (path === "/predict") {
         requests.push(options);
-        lastResult = { target_hour: example.target_hour, workload_stage: "idle", probabilities: [1, 0, 0], model_version: "test", prediction_id: options.headers["Idempotency-Key"], log_status: "local" };
+        lastResult = { target_hour: JSON.parse(options.body).target_hour, workload_stage: "idle", probabilities: [1, 0, 0], model_version: "test", prediction_id: options.headers["Idempotency-Key"], log_status: "local" };
         return response(lastResult);
       }
       if (path.startsWith("/predictions/")) return response({ event: { response: lastResult }, log_status: "local", latest_feedback: null });
@@ -416,11 +445,42 @@ test("forecast source requires an explicit real-data choice and sample loading r
 
     await element("load-example").emit("click");
     assert.equal(element("data-source").value, "demo");
+    element("target-hour").value = "2026-11-16T00:00";
     element("csv-file").files = [{ name: "downloaded-example.csv", size: csv.length, async text() { return csv; } }];
     await element("csv-file").emit("change");
+    assert.equal(element("target-hour").value, "2011-09-27T06:00");
+    assert.equal(element("history").value, csv, "Automatic target selection never rewrites the history");
+    assert.match(element("target-help").textContent, /2011-09-20 06:00.*2011-09-27 05:00.*2011-09-27 06:00/);
     await element("forecast-form").emit("submit");
     assert.equal(requests.at(-1).headers["X-Data-Source"], "demo", "Reuploading the sample preserves the explicit demo choice");
     assert.match(element("result-source").textContent, /실습/);
+    element("target-hour").value = "2011-09-27T07:00";
+    await element("target-hour").emit("input");
+    assert.match(element("input-status").textContent, /현재 이력에 맞는 예측 시각은 2011-09-27 06:00/);
+    const beforeInvalid = requests.length;
+    await element("forecast-form").emit("submit");
+    assert.equal(requests.length, beforeInvalid);
+    assert.equal(element("form-error").hidden, true, "Local validation uses one error location");
+    element("data-source").value = "user";
+    await element("data-source").emit("change");
+    for (const invalid of [toCSV(example.history.slice(1)), toCSV([example.history[0], ...example.history.slice(0, -1)])]) {
+      element("csv-file").files = [{ name: "invalid.csv", size: invalid.length, async text() { return invalid; } }];
+      await element("csv-file").emit("change");
+      assert.equal(element("target-hour").value, "");
+      assert.equal(element("input-status").className, "input-status invalid");
+      assert.doesNotMatch(element("target-help").textContent, /예측 가능한 시각/);
+      await element("forecast-form").emit("submit");
+      assert.equal(requests.length, beforeInvalid);
+    }
+    const shifted = toCSV(historyFor("2025-01-01T00:00:00"));
+    element("csv-file").files = [{ name: "new-period.csv", size: shifted.length, async text() { return shifted; } }];
+    await element("csv-file").emit("change");
+    assert.equal(element("target-hour").value, "2025-01-01T00:00");
+    assert.equal(element("history").value, shifted);
+    assert.equal(element("data-source").value, "user");
+    await element("forecast-form").emit("submit");
+    assert.equal(requests.at(-1).headers["X-Data-Source"], "user");
+    assert.equal(JSON.parse(requests.at(-1).body).target_hour, "2025-01-01T00:00:00");
   } finally {
     await new Promise(resolve => setImmediate(resolve));
     for (const [key, value] of Object.entries(previous)) {
