@@ -1,6 +1,10 @@
+import csv
+import io
 import os
 import re
 import shutil
+from datetime import datetime, timedelta
+from itertools import pairwise
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -8,7 +12,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from workload.api import STATIC_PATH, MetadataResponse, create_app
+from workload import api
+from workload.api import HISTORY_CSV_PATH, STATIC_PATH, MetadataResponse, create_app
 from workload.log_delivery import LogSettings
 from workload.log_models import RecordedForecast
 from workload.schemas import ForecastRequest, ForecastResponse
@@ -71,6 +76,52 @@ def test_dashboard_does_not_expose_repository_files(tmp_path: Path) -> None:
     ) as client:
         assert client.get("/static/%2e%2e/artifact.py").status_code == 404
         assert client.get("/artifacts/model.json").status_code == 404
+
+
+def test_full_history_download_contains_only_continuous_hourly_counts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Installed releases carry examples/ alongside workload/, independent of the launch cwd.
+    installed_csv = Path(api.__file__).resolve().parents[1] / "examples/team-test/full-history.csv"
+    assert installed_csv == HISTORY_CSV_PATH
+    assert HISTORY_CSV_PATH.is_file()
+    monkeypatch.chdir(tmp_path)
+    with TestClient(
+        create_app(log_settings=LogSettings(database=tmp_path / "events.db"))
+    ) as client:
+        response = client.get("/example/history.csv")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "text/csv; charset=utf-8"
+        assert response.headers["cache-control"] == "no-store"
+        assert response.headers["content-disposition"] == (
+            'attachment; filename="hourahead-full-history.csv"'
+        )
+        assert response.content == HISTORY_CSV_PATH.read_bytes()
+        reader = csv.DictReader(io.StringIO(response.text))
+        assert reader.fieldnames == ["hour", "count"]
+        rows = list(reader)
+        assert len(rows) == 8787
+        assert all(set(row) == {"hour", "count"} for row in rows)
+        assert all(row["count"].isdigit() and 0 <= int(row["count"]) <= 100000 for row in rows)
+        hours = [datetime.fromisoformat(row["hour"]) for row in rows]
+        assert hours[0] == datetime(2010, 12, 8, 9)
+        assert hours[-1] == datetime(2011, 12, 9, 11)
+        assert all(later - earlier == timedelta(hours=1) for earlier, later in pairwise(hours))
+        # The original JSON endpoint remains a single causally valid 168-hour request.
+        sample = ForecastRequest.model_validate_json(client.get("/example").text)
+        assert len(sample.history) == 168
+
+
+def test_missing_full_history_download_has_clear_not_found_response(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(api, "HISTORY_CSV_PATH", tmp_path / "missing-history.csv")
+    with TestClient(
+        create_app(log_settings=LogSettings(database=tmp_path / "events.db"))
+    ) as client:
+        response = client.get("/example/history.csv")
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Example history CSV is not available"}
 
 
 def asset_client(directory: Path) -> TestClient:

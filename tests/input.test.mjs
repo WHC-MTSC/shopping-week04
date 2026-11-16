@@ -410,6 +410,7 @@ test("forecast source requires an explicit real-data choice and sample loading r
   };
   const requests = [];
   let lastResult;
+  let pendingPrediction = null;
   const response = data => ({ ok: true, async json() { return data; } });
   try {
     globalThis.document = { getElementById: element, createElement: makeElement, createElementNS: makeElement };
@@ -422,6 +423,7 @@ test("forecast source requires an explicit real-data choice and sample loading r
       if (path === "/predict") {
         requests.push(options);
         lastResult = { target_hour: JSON.parse(options.body).target_hour, workload_stage: "idle", probabilities: [1, 0, 0], model_version: "test", prediction_id: options.headers["Idempotency-Key"], log_status: "local" };
+        if (pendingPrediction) await pendingPrediction;
         return response(lastResult);
       }
       if (path.startsWith("/predictions/")) return response({ event: { response: lastResult }, log_status: "local", latest_feedback: null });
@@ -481,6 +483,71 @@ test("forecast source requires an explicit real-data choice and sample loading r
     await element("forecast-form").emit("submit");
     assert.equal(requests.at(-1).headers["X-Data-Source"], "user");
     assert.equal(JSON.parse(requests.at(-1).body).target_hour, "2025-01-01T00:00:00");
+
+    const extendedHistory = [...example.history,
+      { hour: example.target_hour, count: 666 },
+      { hour: "2011-09-27T07:00:00", count: 777 }];
+    const extendedCSV = toCSV(extendedHistory);
+    element("data-source").value = "demo";
+    await element("data-source").emit("change");
+    element("csv-file").files = [{ name: "full-history.csv", size: extendedCSV.length, async text() { return extendedCSV; } }];
+    await element("csv-file").emit("change");
+    assert.equal(element("target-hour").value, "2011-09-27T06:00", "A large file starts at its first usable target so next-hour browsing is available");
+    assert.equal(element("target-hour").min, "2011-09-27T06:00");
+    assert.equal(element("target-hour").max, "2011-09-27T08:00");
+    assert.equal(element("previous-hour").disabled, true);
+    assert.equal(element("next-hour").disabled, false);
+    assert.equal(element("result-empty-title").textContent, "예측 대기");
+    await element("forecast-form").emit("submit");
+    assert.deepEqual(JSON.parse(requests.at(-1).body).history, example.history, "Target/future rows in the full CSV never leak into this prediction");
+    assert.equal(element("result-stage").textContent, "0건");
+    assert.match(element("result-action").textContent, /정상 예측.*입력 데이터가 부족하다는 뜻이 아닙니다/);
+    const firstWindowKey = requests.at(-1).headers["Idempotency-Key"];
+    await element("next-hour").emit("click");
+    assert.equal(element("target-hour").value, "2011-09-27T07:00");
+    assert.equal(element("history").value, extendedCSV);
+    assert.equal(element("result").hidden, true);
+    assert.equal(element("result-empty-title").textContent, "예측 대기");
+    await element("forecast-form").emit("submit");
+    assert.deepEqual(JSON.parse(requests.at(-1).body).history, extendedHistory.slice(1, 169));
+    assert.notEqual(requests.at(-1).headers["Idempotency-Key"], firstWindowKey);
+    assert.equal(requests.at(-1).headers["X-Data-Source"], "demo");
+    await element("latest-hour").emit("click");
+    assert.equal(element("target-hour").value, "2011-09-27T08:00");
+    assert.equal(element("next-hour").disabled, true);
+    assert.equal(element("latest-hour").disabled, true);
+    assert.match(element("navigation-note").textContent, /2011-09-27 08:00.*실제 집계/);
+    await element("next-hour").emit("click");
+    assert.equal(element("target-hour").value, "2011-09-27T08:00", "Boundary buttons cannot manufacture the next observation");
+    await element("forecast-form").emit("submit");
+    assert.deepEqual(JSON.parse(requests.at(-1).body).history, extendedHistory.slice(2));
+    await element("previous-hour").emit("click");
+    assert.equal(element("target-hour").value, "2011-09-27T07:00");
+    assert.equal(element("history").value, extendedCSV, "Navigation must preserve every uploaded row");
+    let releasePrediction;
+    pendingPrediction = new Promise(resolve => { releasePrediction = resolve; });
+    const pendingSubmit = element("forecast-form").emit("submit");
+    assert.equal(element("previous-hour").disabled, true);
+    assert.equal(element("next-hour").disabled, true);
+    assert.equal(element("latest-hour").disabled, true);
+    await element("next-hour").emit("click");
+    assert.equal(element("target-hour").value, "2011-09-27T07:00", "A pending forecast cannot be retargeted by navigation");
+    releasePrediction();
+    await pendingSubmit;
+    pendingPrediction = null;
+    assert.equal(element("previous-hour").disabled, false);
+    assert.equal(element("next-hour").disabled, false);
+    element("target-hour").value = "2011-09-27T09:00";
+    await element("target-hour").emit("input");
+    assert.equal(element("result-empty-title").textContent, "입력 확인 필요");
+    assert.match(element("input-status").textContent, /데이터 부족/);
+    const beforeOutsideRange = requests.length;
+    await element("forecast-form").emit("submit");
+    assert.equal(requests.length, beforeOutsideRange);
+    await element("load-example").emit("click");
+    assert.equal(element("previous-hour").disabled, true);
+    assert.equal(element("next-hour").disabled, true);
+    assert.match(element("navigation-note").textContent, /168행 파일은 한 시각만/);
   } finally {
     await new Promise(resolve => setImmediate(resolve));
     for (const [key, value] of Object.entries(previous)) {

@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 from workload.artifact import STAGE_RANGES, STAGES, ForestArtifact, TrainingPurpose
@@ -25,6 +25,9 @@ from workload.web_assets import mount_dashboard
 DEFAULT_MODEL_PATH: Final = Path(__file__).resolve().parents[1] / "artifacts/model.json"
 STATIC_PATH: Final = Path(__file__).resolve().parent / "static"
 EXAMPLE_PATH: Final = Path(__file__).resolve().parents[1] / "examples/request.json"
+HISTORY_CSV_PATH: Final = (
+    Path(__file__).resolve().parents[1] / "examples/team-test/full-history.csv"
+)
 
 
 class MetadataResponse(FrozenModel):
@@ -157,6 +160,17 @@ def create_app(
     @application.get("/example", summary="화면 체험용 과거 입력 데이터")
     def example() -> ForecastRequest:
         return ForecastRequest.model_validate_json(EXAMPLE_PATH.read_text(encoding="utf-8"))
+
+    @application.get("/example/history.csv", summary="시간을 선택해 체험하는 전체 과거 집계 CSV")
+    def example_history() -> FileResponse:
+        if not HISTORY_CSV_PATH.is_file():
+            raise HTTPException(status_code=404, detail="Example history CSV is not available")
+        return FileResponse(
+            HISTORY_CSV_PATH,
+            media_type="text/csv",
+            filename="hourahead-full-history.csv",
+            headers={"Cache-Control": "no-store"},
+        )
 
     _ = application.exception_handler(RequestValidationError)(validation_error_handler)
     register_log_errors(application)

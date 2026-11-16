@@ -451,7 +451,7 @@ switch ($Action) {
                 & $uv @arguments
                 if ($LASTEXITCODE -ne 0) { throw 'Required quality check failed.' }
             }
-            & $node --test tests/input.test.mjs
+            & $node --test tests/input.test.mjs tests/history-window.test.mjs
             if ($LASTEXITCODE -ne 0) { throw 'Browser contract tests failed.' }
         } finally {
             Pop-Location

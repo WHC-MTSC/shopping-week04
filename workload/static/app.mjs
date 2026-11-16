@@ -1,4 +1,4 @@
-import { makeRequest, requestFromCSV, toCSV, HOUR_MS, MAX_FILE_BYTES, parseHour } from "./input.mjs";
+import { makeRequest, inspectHistoryCSV, toCSV, HOUR_MS, MAX_FILE_BYTES, parseHour } from "./input.mjs";
 import { recordPrediction } from "./feedback.mjs";
 
 const $ = id => document.getElementById(id);
@@ -10,8 +10,9 @@ let source = "demo";
 let revision = 0;
 let busy = false;
 let predictionKey = null;
+let availableHistory = null;
 const stages = [
-  { id: "idle", name: "없음", range: "판매전표 0건", action: "판매전표가 없는 구간으로 예측했습니다." },
+  { id: "idle", name: "없음", range: "판매전표 없음 단계", action: "정상 예측 결과입니다. 모델이 판매전표 0건 구간으로 판단했으며, 입력 데이터가 부족하다는 뜻이 아닙니다." },
   { id: "normal", name: "보통", range: "판매전표 1–9건", action: "판매전표 1~9건 구간으로 예측했습니다." },
   { id: "busy", name: "혼잡", range: "판매전표 10건 이상", action: "판매전표 10건 이상 구간으로 예측했습니다." },
 ];
@@ -25,6 +26,7 @@ function setBusy(value) {
   busy = value;
   for (const control of [$("predict-button"), $("load-example"), $("csv-file"), sourceInput, targetInput, historyInput]) control.disabled = value;
   form.setAttribute("aria-busy", String(value));
+  updateNavigation();
 }
 
 function invalidateResult() {
@@ -32,20 +34,48 @@ function invalidateResult() {
   predictionKey = null;
   $("result").hidden = true;
   $("result-empty").hidden = false;
+  $("result-empty-title").textContent = "예측 대기";
+  $("result-empty-message").textContent = "선택한 시각으로 예측 실행을 눌러주세요.";
   showError();
+}
+
+const displayHour = hour => hour.slice(0, 16).replace("T", " ");
+
+function updateNavigation() {
+  let current = null;
+  try { current = parseHour(targetInput.value).milliseconds; } catch { /* The input is incomplete. */ }
+  const first = availableHistory ? parseHour(availableHistory.first_target_hour).milliseconds : null;
+  const last = availableHistory ? parseHour(availableHistory.last_target_hour).milliseconds : null;
+  const valid = current !== null && first !== null && current >= first && current <= last;
+  $("previous-hour").disabled = busy || !valid || current <= first;
+  $("next-hour").disabled = busy || !valid || current >= last;
+  $("latest-hour").disabled = busy || !availableHistory || current === last;
+  if (!availableHistory) $("navigation-note").textContent = "CSV를 불러오면 가능한 시간 안에서 이동할 수 있습니다.";
+  else if (first === last) $("navigation-note").textContent = "168행 파일은 한 시각만 예측할 수 있습니다. 여러 시간을 보려면 전체 CSV 예시를 불러오세요.";
+  else if (current === last) $("navigation-note").textContent = `마지막 예측 가능 시각입니다. 다음 시간에는 ${displayHour(availableHistory.last_target_hour)}의 실제 집계를 CSV에 추가해야 합니다.`;
+  else $("navigation-note").textContent = `총 ${availableHistory.history.length - 167}개 시각을 선택할 수 있습니다. 시간을 옮긴 뒤 예측 실행을 누르세요.`;
 }
 
 function checkInput({ alignTarget = false } = {}) {
   const status = $("input-status");
-  $("target-help").textContent = "연속된 168시간 이력이 필요합니다. CSV 파일을 불러오면 마지막 관측 다음 정각으로 예측 시각을 맞춥니다.";
+  availableHistory = null;
+  targetInput.min = "0001-01-08T00:00";
+  targetInput.max = "9999-12-31T23:00";
+  $("target-help").textContent = "전체 CSV에서 선택한 시각 직전 168시간을 자동으로 추출합니다.";
   try {
-    const inferred = requestFromCSV(historyInput.value);
-    if (alignTarget) targetInput.value = inferred.target_hour.slice(0, 16);
-    const display = hour => hour.slice(0, 16).replace("T", " ");
-    $("target-help").textContent = `현재 이력: ${display(inferred.history[0].hour)} ~ ${display(inferred.history.at(-1).hour)} · 예측 가능한 시각: ${display(inferred.target_hour)} (원본 현지 시각). 다른 시각은 그 직전 168시간의 실제 이력이 필요합니다.`;
+    const inferred = inspectHistoryCSV(historyInput.value);
+    availableHistory = inferred;
+    if (alignTarget) targetInput.value = inferred.first_target_hour.slice(0, 16);
+    targetInput.min = inferred.first_target_hour.slice(0, 16);
+    targetInput.max = inferred.last_target_hour.slice(0, 16);
+    $("target-help").textContent = `전체 ${inferred.history.length.toLocaleString("ko-KR")}행: ${displayHour(inferred.history[0].hour)} ~ ${displayHour(inferred.history.at(-1).hour)} · 예측 가능한 시각: ${displayHour(inferred.first_target_hour)} ~ ${displayHour(inferred.last_target_hour)} (원본 현지 시각).`;
     const request = makeRequest(targetInput.value, historyInput.value);
-    status.textContent = "검증 완료 · 연속 168시간";
+    status.textContent = `검증 완료 · 전체 ${inferred.history.length.toLocaleString("ko-KR")}행 중 직전 168시간 사용 (${displayHour(request.history[0].hour)} ~ ${displayHour(request.history.at(-1).hour)})`;
     status.className = "input-status valid";
+    if ($("result").hidden) {
+      $("result-empty-title").textContent = "예측 대기";
+      $("result-empty-message").textContent = "선택한 시각으로 예측 실행을 눌러주세요.";
+    }
     renderChart(request.history);
     return request;
   } catch (error) {
@@ -54,7 +84,11 @@ function checkInput({ alignTarget = false } = {}) {
     $("chart-empty").hidden = false;
     $("history-chart").hidden = true;
     $("history-summary").textContent = "유효한 이력 필요 · 168시간";
+    $("result-empty-title").textContent = historyInput.value ? "입력 확인 필요" : "CSV 입력 대기";
+    $("result-empty-message").textContent = "아직 예측한 결과가 아닙니다. 왼쪽 입력 안내를 확인하세요.";
     return null;
+  } finally {
+    updateNavigation();
   }
 }
 
@@ -82,7 +116,7 @@ function renderResult(result) {
   const start = parseHour(result.target_hour).milliseconds;
   const end = new Date(start + HOUR_MS).toISOString().slice(0, 16).replace("T", " ");
   $("result-period").textContent = `${result.target_hour.slice(0, 16).replace("T", " ")} → ${end} · 원본 현지 시각`;
-  $("result-stage").textContent = selected.name;
+  $("result-stage").textContent = selected.id === "idle" ? "0건" : selected.name;
   $("result-range").textContent = selected.range;
   $("result-action").textContent = selected.action;
   $("probability-bars").replaceChildren();
@@ -192,13 +226,29 @@ $("csv-file").addEventListener("change", async event => {
   finally { event.target.value = ""; setBusy(false); }
 });
 
-for (const input of [targetInput, historyInput]) input.addEventListener("input", () => {
+function targetChanged() {
+  invalidateResult();
+  source = sourceInput.value;
+  checkInput();
+}
+
+targetInput.addEventListener("input", targetChanged);
+historyInput.addEventListener("input", () => {
   invalidateResult();
   source = sourceInput.value;
   $("source-badge").textContent = source === "demo" ? "직접 입력 · 실습" : "직접 입력 · 실제 집계";
   $("file-name").textContent = "직접 수정한 데이터";
   checkInput();
 });
+
+for (const [id, direction] of [["previous-hour", -1], ["next-hour", 1], ["latest-hour", 0]]) {
+  $(id).addEventListener("click", () => {
+    if (busy || !availableHistory || $(id).disabled) return;
+    const next = direction === 0 ? availableHistory.last_target_hour : new Date(parseHour(targetInput.value).milliseconds + direction * HOUR_MS).toISOString().slice(0, 19);
+    targetInput.value = next.slice(0, 16);
+    targetChanged();
+  });
+}
 
 sourceInput.addEventListener("change", () => {
   invalidateResult();
@@ -231,18 +281,10 @@ form.addEventListener("submit", async event => {
 });
 
 $("download-example").addEventListener("click", async () => {
-  const button = $("download-example");
-  button.disabled = true;
-  try {
-    const example = await fetchJSON("/example");
-    const url = URL.createObjectURL(new Blob(["\uFEFF", toCSV(example.history)], { type: "text/csv;charset=utf-8" }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `history-for-${example.target_hour.slice(0, 13).replace("T", "-")}.csv`;
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  } catch (error) { showError(error.message); }
-  finally { button.disabled = false; }
+  const anchor = document.createElement("a");
+  anchor.href = "/example/history.csv";
+  anchor.download = "hourahead-full-history.csv";
+  anchor.click();
 });
 
 async function checkServer() {
