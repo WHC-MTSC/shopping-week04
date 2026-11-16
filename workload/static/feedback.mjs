@@ -108,6 +108,7 @@ async function lookup(id) {
 $("prediction-id").addEventListener("input", clearSelection);
 $("prediction-lookup").addEventListener("submit", async event => {
   event.preventDefault();
+  if (saving) return;
   $("lookup-button").disabled = true;
   try { await lookup($("prediction-id").value.trim()); }
   finally { $("lookup-button").disabled = false; }
@@ -139,6 +140,8 @@ $("feedback-form").addEventListener("submit", async event => {
     feedbackVersion += 1;
     $("save-feedback").disabled = true;
     $("feedback-fields").disabled = true;
+    $("lookup-button").disabled = true;
+    $("prediction-id").disabled = true;
     const receipt = await request(`/predictions/${predictionId}/feedback`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     if (activeId === predictionId && version === lookupVersion) {
       feedbackVersion += 1;
@@ -146,7 +149,14 @@ $("feedback-form").addEventListener("submit", async event => {
     }
     await refreshLogStatus();
   } catch (error) { if (activeId === predictionId && version === lookupVersion) showError(error.message); }
-  finally { saving = false; $("save-feedback").disabled = false; $("feedback-fields").disabled = false; updateKind(); }
+  finally {
+    saving = false;
+    $("save-feedback").disabled = false;
+    $("feedback-fields").disabled = false;
+    $("lookup-button").disabled = false;
+    $("prediction-id").disabled = false;
+    updateKind();
+  }
 });
 
 export async function refreshLogStatus() {

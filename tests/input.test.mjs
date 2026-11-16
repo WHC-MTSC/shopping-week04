@@ -164,6 +164,29 @@ test("feedback selection and delayed responses preserve the active prediction's 
       });
     }
 
+    for (const succeeds of [true, false]) {
+      await t.test(`lookup stays locked until feedback save ${succeeds ? "succeeds" : "fails"}`, async () => {
+        element("feedback-count").value = "8";
+        await element("feedback-form").emit("input");
+        const pendingSave = element("feedback-form").emit("submit");
+        const submission = take(`/predictions/${c}/feedback`);
+        assert.equal(element("prediction-id").disabled, true);
+        assert.equal(element("lookup-button").disabled, true);
+        const beforeLookup = requests.length;
+        await element("prediction-lookup").emit("submit");
+        assert.equal(requests.length, beforeLookup, "A same-ID lookup must not replace the selection during a save");
+        assert.equal(element("prediction-id").value, c);
+        assert.equal(element("feedback-form").hidden, false);
+        if (succeeds) submission.resolve(response(receipt(c, 8)));
+        else submission.reject(new Error("network"));
+        await pendingSave;
+        assert.equal(element("prediction-id").disabled, false);
+        assert.equal(element("lookup-button").disabled, false);
+        if (succeeds) assert.match(element("feedback-result").textContent, /실제 8건/);
+        else assert.equal(element("feedback-error").hidden, false);
+      });
+    }
+
     element("feedback-count").value = "2";
     await element("feedback-form").emit("input");
     const oldSave = element("feedback-form").emit("submit");
@@ -176,6 +199,8 @@ test("feedback selection and delayed responses preserve the active prediction's 
     assert.equal(element("prediction-id").value, a);
     assert.doesNotMatch(element("feedback-result").textContent, /실제 2건/);
     assert.equal(element("save-feedback").disabled, false);
+    assert.equal(element("prediction-id").disabled, false);
+    assert.equal(element("lookup-button").disabled, false);
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete globalThis[key];
