@@ -1,6 +1,5 @@
 import asyncio
 import hashlib
-import mimetypes
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -11,8 +10,7 @@ from uuid import UUID, uuid4
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 from workload.artifact import STAGE_RANGES, STAGES, ForestArtifact, TrainingPurpose
@@ -22,6 +20,7 @@ from workload.log_models import PredictionEvent, RecordedForecast
 from workload.log_routes import log_router, register_log_errors
 from workload.log_store import LogStore
 from workload.schemas import ForecastRequest, ForecastResponse, FrozenModel, HealthResponse
+from workload.web_assets import mount_dashboard
 
 DEFAULT_MODEL_PATH: Final = Path(__file__).resolve().parents[1] / "artifacts/model.json"
 STATIC_PATH: Final = Path(__file__).resolve().parent / "static"
@@ -153,17 +152,7 @@ def create_app(
         version="0.1.0",
         lifespan=lifespan,
     )
-    # Windows registry mappings can otherwise serve ES modules as text/plain.
-    mimetypes.add_type("text/javascript", ".mjs")
-    application.mount("/static", StaticFiles(directory=STATIC_PATH), name="static")
-
-    @application.get("/", response_class=FileResponse, include_in_schema=False)
-    def dashboard() -> FileResponse:
-        return FileResponse(STATIC_PATH / "index.html", headers={"Cache-Control": "no-cache"})
-
-    @application.get("/log-console", response_class=FileResponse, include_in_schema=False)
-    def log_console() -> FileResponse:
-        return FileResponse(STATIC_PATH / "logs.html", headers={"Cache-Control": "no-cache"})
+    mount_dashboard(application, STATIC_PATH)
 
     @application.get("/example", summary="화면 체험용 과거 입력 데이터")
     def example() -> ForecastRequest:
