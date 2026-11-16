@@ -273,6 +273,49 @@ test("feedback selection and delayed responses preserve the active prediction's 
       assert.match(element("feedback-result").textContent, /실제 16건/);
     });
 
+    await t.test("a successful current refresh clears its preceding refresh error", async () => {
+      const failedRefresh = element("refresh-logs").emit("click");
+      await settle();
+      take(`/predictions/${c}`).reject(new Error("temporary read failure"));
+      await failedRefresh;
+      assert.equal(element("feedback-error").hidden, false);
+      const recoveredRefresh = element("refresh-logs").emit("click");
+      await settle();
+      take(`/predictions/${c}`).resolve(response(detail(c, receipt(c, 16, 27))));
+      await recoveredRefresh;
+      assert.equal(element("feedback-error").hidden, true);
+      assert.match(element("feedback-result").textContent, /실제 16건/);
+    });
+
+    await t.test("refresh recovery preserves an uncertain save error and its retry token", async () => {
+      element("feedback-count").value = "18";
+      await element("feedback-form").emit("input");
+      const failedSave = element("feedback-form").emit("submit");
+      const lost = take(`/predictions/${c}/feedback`);
+      const lostId = JSON.parse(lost.options.body).submission_id;
+      lost.reject(new Error("unknown save outcome"));
+      await failedSave;
+      const saveError = element("feedback-error").textContent;
+      const failedRefresh = element("refresh-logs").emit("click");
+      await settle();
+      take(`/predictions/${c}`).resolve({ ok: false, status: 503 });
+      await failedRefresh;
+      assert.equal(element("feedback-error").textContent, saveError);
+      const recoveredRefresh = element("refresh-logs").emit("click");
+      await settle();
+      take(`/predictions/${c}`).resolve(response(detail(c, receipt(c, 16, 27))));
+      await recoveredRefresh;
+      assert.equal(element("feedback-error").hidden, false);
+      assert.equal(element("feedback-error").textContent, saveError);
+      const retrySave = element("feedback-form").emit("submit");
+      const retry = take(`/predictions/${c}/feedback`);
+      const retryId = JSON.parse(retry.options.body).submission_id;
+      retry.resolve(response(receipt(c, 18, 28)));
+      await retrySave;
+      assert.equal(retryId, lostId);
+      assert.equal(element("feedback-error").hidden, true);
+    });
+
     element("feedback-count").value = "2";
     await element("feedback-form").emit("input");
     const oldSave = element("feedback-form").emit("submit");

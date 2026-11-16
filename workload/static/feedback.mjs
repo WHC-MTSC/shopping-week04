@@ -12,6 +12,7 @@ let predictionRefreshVersion = 0;
 let latestFeedbackRevision = 0;
 let completedSubmission = null;
 let saving = false;
+let feedbackErrorSource = null;
 
 async function request(path, options = {}) {
   let response;
@@ -24,7 +25,10 @@ async function request(path, options = {}) {
   return response.json();
 }
 
-function showError(message = "") {
+function showError(message = "", source = "other") {
+  // A read failure must not replace an unresolved write outcome.
+  if (source === "refresh" && feedbackErrorSource === "save") return;
+  feedbackErrorSource = message ? source : null;
   $("feedback-error").textContent = message;
   $("feedback-error").hidden = !message;
 }
@@ -92,6 +96,7 @@ async function refreshPrediction(id, version) {
   try { detail = await request(`/predictions/${encodeURIComponent(id)}`); }
   catch (error) { if (isCurrent()) throw error; return; }
   if (!isCurrent()) return;
+  if (feedbackErrorSource === "refresh") showError();
   $("prediction-delivery").textContent = deliveryNames[detail.log_status];
   if (receiptVersion === feedbackVersion && detail.latest_feedback) showReceipt(detail.latest_feedback);
 }
@@ -106,7 +111,7 @@ export function recordPrediction(result, source) {
   }
   const version = lookupVersion;
   void refreshPrediction(result.prediction_id, version).catch(error => {
-    if (version === lookupVersion) showError(error.message);
+    if (version === lookupVersion) showError(error.message, "refresh");
   });
   void refreshLogStatus();
 }
@@ -168,7 +173,7 @@ $("feedback-form").addEventListener("submit", async event => {
       showReceipt(receipt);
     }
     await refreshLogStatus();
-  } catch (error) { if (activeId === predictionId && version === lookupVersion) showError(error.message); }
+  } catch (error) { if (activeId === predictionId && version === lookupVersion) showError(error.message, "save"); }
   finally {
     saving = false;
     $("save-feedback").disabled = false;
@@ -196,7 +201,7 @@ $("refresh-logs").addEventListener("click", async () => {
   if (!activeId) return;
   const version = lookupVersion;
   try { await refreshPrediction(activeId, version); }
-  catch (error) { if (version === lookupVersion) showError(error.message); }
+  catch (error) { if (version === lookupVersion) showError(error.message, "refresh"); }
 });
 updateKind();
 void refreshLogStatus();
