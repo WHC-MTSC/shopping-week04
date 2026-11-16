@@ -1,0 +1,1073 @@
+{
+  "checked_at_utc": "2026-11-16T07:27:28.649785+00:00",
+  "final_code_commit": "6935ed5a4bc3843201c75612368a819bce44d129",
+  "scope": "Local prototype: 168 measured hourly invoice counts -> one-hour stage prediction -> user truth -> immutable events -> training preparation",
+  "review_cycles": [
+    "cross-layer counterexample search",
+    "fix and regression tests",
+    "independent cross-review and recovery fix",
+    "final deployment and browser/API verification"
+  ],
+  "fixed_findings": [
+    "late refresh overwrote newer feedback/delivery",
+    "completed submission ID reused after another-tab correction",
+    "readme historical sample classified as user data",
+    "contradictory T/F-only groups entered reward data",
+    "refresh error remained after recovery"
+  ],
+  "quality": {
+    "python_passed": 260,
+    "node_passed": 38,
+    "ruff_format_typecheck": "passed"
+  },
+  "browser": {
+    "name": "Codex in-app browser",
+    "predicted_stages_verified": [
+      "idle",
+      "normal",
+      "busy"
+    ],
+    "duplicate_unchanged_prediction_and_feedback_no_new_events": true,
+    "demo_reset_after_sample": true,
+    "negative_feedback_blocked_then_recovered": true,
+    "two_tab_bug_reproduced_before_fix": true,
+    "two_tab_correction_after_fix": {
+      "prediction_id": "614f5cce-1fd9-470d-a615-5a22506ad061",
+      "latest_revision": 6,
+      "actual_count": 1,
+      "total_events": 7,
+      "repeated_save_no_extra_event": true
+    },
+    "final_deployment_busy_prediction": {
+      "event": {
+        "schema_version": 1,
+        "event_type": "prediction",
+        "event_id": "88a47ebe-4295-4501-9957-5f9982b4d21a",
+        "prediction_id": "2f75605e-f2c3-4138-8638-4932992d5635",
+        "recorded_at": "2026-11-16T07:25:35.650545Z",
+        "data_source": "demo",
+        "request": {
+          "target_hour": "2011-09-27T10:00:00",
+          "history": [
+            {
+              "hour": "2011-09-20T10:00:00",
+              "count": 11
+            },
+            {
+              "hour": "2011-09-20T11:00:00",
+              "count": 7
+            },
+            {
+              "hour": "2011-09-20T12:00:00",
+              "count": 14
+            },
+            {
+              "hour": "2011-09-20T13:00:00",
+              "count": 12
+            },
+            {
+              "hour": "2011-09-20T14:00:00",
+              "count": 10
+            },
+            {
+              "hour": "2011-09-20T15:00:00",
+              "count": 6
+            },
+            {
+              "hour": "2011-09-20T16:00:00",
+              "count": 1
+            },
+            {
+              "hour": "2011-09-20T17:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-20T18:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-20T19:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-20T20:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-20T21:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-20T22:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-20T23:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-21T00:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-21T01:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-21T02:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-21T03:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-21T04:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-21T05:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-21T06:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-21T07:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-21T08:00:00",
+              "count": 3
+            },
+            {
+              "hour": "2011-09-21T09:00:00",
+              "count": 8
+            },
+            {
+              "hour": "2011-09-21T10:00:00",
+              "count": 6
+            },
+            {
+              "hour": "2011-09-21T11:00:00",
+              "count": 6
+            },
+            {
+              "hour": "2011-09-21T12:00:00",
+              "count": 10
+            },
+            {
+              "hour": "2011-09-21T13:00:00",
+              "count": 10
+            },
+            {
+              "hour": "2011-09-21T14:00:00",
+              "count": 10
+            },
+            {
+              "hour": "2011-09-21T15:00:00",
+              "count": 18
+            },
+            {
+              "hour": "2011-09-21T16:00:00",
+              "count": 3
+            },
+            {
+              "hour": "2011-09-21T17:00:00",
+              "count": 1
+            },
+            {
+              "hour": "2011-09-21T18:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-21T19:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-21T20:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-21T21:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-21T22:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-21T23:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-22T00:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-22T01:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-22T02:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-22T03:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-22T04:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-22T05:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-22T06:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-22T07:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-22T08:00:00",
+              "count": 1
+            },
+            {
+              "hour": "2011-09-22T09:00:00",
+              "count": 7
+            },
+            {
+              "hour": "2011-09-22T10:00:00",
+              "count": 8
+            },
+            {
+              "hour": "2011-09-22T11:00:00",
+              "count": 8
+            },
+            {
+              "hour": "2011-09-22T12:00:00",
+              "count": 19
+            },
+            {
+              "hour": "2011-09-22T13:00:00",
+              "count": 14
+            },
+            {
+              "hour": "2011-09-22T14:00:00",
+              "count": 12
+            },
+            {
+              "hour": "2011-09-22T15:00:00",
+              "count": 11
+            },
+            {
+              "hour": "2011-09-22T16:00:00",
+              "count": 12
+            },
+            {
+              "hour": "2011-09-22T17:00:00",
+              "count": 11
+            },
+            {
+              "hour": "2011-09-22T18:00:00",
+              "count": 6
+            },
+            {
+              "hour": "2011-09-22T19:00:00",
+              "count": 3
+            },
+            {
+              "hour": "2011-09-22T20:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-22T21:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-22T22:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-22T23:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-23T00:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-23T01:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-23T02:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-23T03:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-23T04:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-23T05:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-23T06:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-23T07:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-23T08:00:00",
+              "count": 2
+            },
+            {
+              "hour": "2011-09-23T09:00:00",
+              "count": 9
+            },
+            {
+              "hour": "2011-09-23T10:00:00",
+              "count": 9
+            },
+            {
+              "hour": "2011-09-23T11:00:00",
+              "count": 6
+            },
+            {
+              "hour": "2011-09-23T12:00:00",
+              "count": 13
+            },
+            {
+              "hour": "2011-09-23T13:00:00",
+              "count": 7
+            },
+            {
+              "hour": "2011-09-23T14:00:00",
+              "count": 8
+            },
+            {
+              "hour": "2011-09-23T15:00:00",
+              "count": 6
+            },
+            {
+              "hour": "2011-09-23T16:00:00",
+              "count": 2
+            },
+            {
+              "hour": "2011-09-23T17:00:00",
+              "count": 2
+            },
+            {
+              "hour": "2011-09-23T18:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-23T19:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-23T20:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-23T21:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-23T22:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-23T23:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T00:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T01:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T02:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T03:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T04:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T05:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T06:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T07:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T08:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T09:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T10:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T11:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T12:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T13:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T14:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T15:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T16:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T17:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T18:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T19:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T20:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T21:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T22:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-24T23:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-25T00:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-25T01:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-25T02:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-25T03:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-25T04:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-25T05:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-25T06:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-25T07:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-25T08:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-25T09:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-25T10:00:00",
+              "count": 4
+            },
+            {
+              "hour": "2011-09-25T11:00:00",
+              "count": 12
+            },
+            {
+              "hour": "2011-09-25T12:00:00",
+              "count": 16
+            },
+            {
+              "hour": "2011-09-25T13:00:00",
+              "count": 14
+            },
+            {
+              "hour": "2011-09-25T14:00:00",
+              "count": 17
+            },
+            {
+              "hour": "2011-09-25T15:00:00",
+              "count": 10
+            },
+            {
+              "hour": "2011-09-25T16:00:00",
+              "count": 2
+            },
+            {
+              "hour": "2011-09-25T17:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-25T18:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-25T19:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-25T20:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-25T21:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-25T22:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-25T23:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-26T00:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-26T01:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-26T02:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-26T03:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-26T04:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-26T05:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-26T06:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-26T07:00:00",
+              "count": 1
+            },
+            {
+              "hour": "2011-09-26T08:00:00",
+              "count": 1
+            },
+            {
+              "hour": "2011-09-26T09:00:00",
+              "count": 4
+            },
+            {
+              "hour": "2011-09-26T10:00:00",
+              "count": 8
+            },
+            {
+              "hour": "2011-09-26T11:00:00",
+              "count": 7
+            },
+            {
+              "hour": "2011-09-26T12:00:00",
+              "count": 12
+            },
+            {
+              "hour": "2011-09-26T13:00:00",
+              "count": 11
+            },
+            {
+              "hour": "2011-09-26T14:00:00",
+              "count": 9
+            },
+            {
+              "hour": "2011-09-26T15:00:00",
+              "count": 8
+            },
+            {
+              "hour": "2011-09-26T16:00:00",
+              "count": 3
+            },
+            {
+              "hour": "2011-09-26T17:00:00",
+              "count": 2
+            },
+            {
+              "hour": "2011-09-26T18:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-26T19:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-26T20:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-26T21:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-26T22:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-26T23:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-27T00:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-27T01:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-27T02:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-27T03:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-27T04:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-27T05:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-27T06:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-27T07:00:00",
+              "count": 0
+            },
+            {
+              "hour": "2011-09-27T08:00:00",
+              "count": 1
+            },
+            {
+              "hour": "2011-09-27T09:00:00",
+              "count": 5
+            }
+          ]
+        },
+        "response": {
+          "target_hour": "2011-09-27T10:00:00",
+          "workload_stage": "busy",
+          "stage_range": "10+",
+          "probabilities": [
+            0.0038912153840102433,
+            0.42807412485400076,
+            0.5680346597619891
+          ],
+          "model_version": "77f4c9c1af34"
+        },
+        "features": {
+          "hour": 10.0,
+          "weekday": 1.0,
+          "month": 9.0,
+          "weekend": 0.0,
+          "lag_1h": 5.0,
+          "lag_24h": 8.0,
+          "lag_168h": 11.0,
+          "previous_24h_mean": 2.75,
+          "previous_3h_mean": 2.0,
+          "previous_6h_mean": 1.0,
+          "previous_168h_mean": 2.732142857142857,
+          "previous_day_3h_mean": 9.0,
+          "previous_week_3h_mean": 10.666666666666666,
+          "hour_sin": 0.49999999999999994,
+          "hour_cos": -0.8660254037844387,
+          "weekday_sin": 0.7818314824680298,
+          "weekday_cos": 0.6234898018587336,
+          "day_of_month": 27.0
+        },
+        "model_sha256": "6bb6a0822739c21c398ec932e81117cc422b6e2d90060a134fd666603916dba3"
+      },
+      "log_status": "local",
+      "latest_feedback": {
+        "event": {
+          "schema_version": 1,
+          "event_type": "feedback",
+          "event_id": "ef03dd9b-a8c7-4a81-906b-b1412e7d65aa",
+          "prediction_id": "2f75605e-f2c3-4138-8638-4932992d5635",
+          "recorded_at": "2026-11-16T07:25:36.003545Z",
+          "revision": 1,
+          "data_source": "demo",
+          "submission": {
+            "submission_id": "ef03dd9b-a8c7-4a81-906b-b1412e7d65aa",
+            "feedback": {
+              "kind": "actual_count",
+              "value": 16
+            }
+          },
+          "actual_stage": "busy",
+          "is_correct": true
+        },
+        "log_status": "local"
+      }
+    },
+    "console_warning_error_count": 0
+  },
+  "deployed_module_matches_source_and_http": true,
+  "health": {
+    "status": "ready",
+    "model_version": "77f4c9c1af34"
+  },
+  "logging": {
+    "destination": "local",
+    "region": "ap-northeast-2",
+    "log_group": null,
+    "log_stream": null,
+    "pending_events": 23,
+    "sent_events": 0,
+    "failed_events": 0,
+    "last_error": null
+  },
+  "aws_existing_service": {
+    "destination": "cloudwatch",
+    "sent_events": 11,
+    "pending_events": 9,
+    "failed_events": 1,
+    "last_error": "LoginRefreshRequired"
+  },
+  "evidence": {
+    "deep-review-model-20261116.json": {
+      "checked_at_utc": "2026-11-16T07:20:04.663408+00:00",
+      "source_commit": "f7f247d884500a454bd65cde51722db887d96d4a",
+      "mode": "isolated_offline",
+      "source_rows": 8787,
+      "source_sha256": "9d8e1967042f446043a33e2258df2d6961e361d0a79ca9b7eb237eddb2866fe8",
+      "source_sha_matches_report": true,
+      "model_sha256": "6bb6a0822739c21c398ec932e81117cc422b6e2d90060a134fd666603916dba3",
+      "evaluation_rows": 1758,
+      "dataset_calendar_lags_and_continuity_passed": true,
+      "dataset_csv_artifact_mismatches": [],
+      "probability_errors": [],
+      "recomputed_metrics": {
+        "rows": 1758,
+        "accuracy": 0.9055745164960182,
+        "macro_f1": 0.8370009547206106,
+        "balanced_accuracy": 0.8409182125326704,
+        "active_hour_accuracy": 0.764612954186414,
+        "class_recall": [
+          0.9848888888888889,
+          0.6807228915662651,
+          0.8571428571428571
+        ],
+        "class_precision": [
+          0.9866429207479964,
+          0.7902097902097902,
+          0.7392550143266475
+        ],
+        "confusion_matrix": [
+          [
+            1108,
+            17,
+            0
+          ],
+          [
+            15,
+            226,
+            91
+          ],
+          [
+            0,
+            43,
+            258
+          ]
+        ],
+        "class_support": [
+          1125,
+          332,
+          301
+        ]
+      },
+      "stored_metrics_match": true,
+      "sample_features_match_source": true,
+      "source_max_count": 32,
+      "limitations": [
+        "Original transaction workbook and week02 aggregation code are not present locally.",
+        "Connected GitHub read for WHC-MTSC/shopping-week02 returned 404; invoice filtering and deduplication were not re-audited.",
+        "No running service, process, Startup, AWS resource, or authentication was modified."
+      ]
+    },
+    "deep-review-model-api-20261116.json": {
+      "checked_at_utc": "2026-11-16T07:23:36.189397+00:00",
+      "source_commit": "f7f247d884500a454bd65cde51722db887d96d4a",
+      "mode": "isolated_in_process_testclient_temporary_sqlite",
+      "model_sha256": "6bb6a0822739c21c398ec932e81117cc422b6e2d90060a134fd666603916dba3",
+      "source_boundary_cases": [
+        {
+          "target_hour": "2010-12-15T18:00:00",
+          "actual_count": 0,
+          "actual_stage": "idle",
+          "predicted_stage": "idle",
+          "api_matches_artifact": true,
+          "stored_input_and_features_match": true
+        },
+        {
+          "target_hour": "2010-12-17T08:00:00",
+          "actual_count": 1,
+          "actual_stage": "normal",
+          "predicted_stage": "normal",
+          "api_matches_artifact": true,
+          "stored_input_and_features_match": true
+        },
+        {
+          "target_hour": "2010-12-15T16:00:00",
+          "actual_count": 9,
+          "actual_stage": "normal",
+          "predicted_stage": "normal",
+          "api_matches_artifact": true,
+          "stored_input_and_features_match": true
+        },
+        {
+          "target_hour": "2010-12-15T11:00:00",
+          "actual_count": 10,
+          "actual_stage": "busy",
+          "predicted_stage": "busy",
+          "api_matches_artifact": true,
+          "stored_input_and_features_match": true
+        },
+        {
+          "target_hour": "2011-05-10T15:00:00",
+          "actual_count": 32,
+          "actual_stage": "busy",
+          "predicted_stage": "busy",
+          "api_matches_artifact": true,
+          "stored_input_and_features_match": true
+        }
+      ],
+      "invalid_input_rejections": [
+        {
+          "case": "target_utc_offset",
+          "status": 422
+        },
+        {
+          "case": "history_offset",
+          "status": 422
+        },
+        {
+          "case": "missing_hour",
+          "status": 422
+        },
+        {
+          "case": "duplicate_hour",
+          "status": 422
+        },
+        {
+          "case": "target_leak_into_history",
+          "status": 422
+        },
+        {
+          "case": "bool_count",
+          "status": 422
+        },
+        {
+          "case": "float_count",
+          "status": 422
+        },
+        {
+          "case": "string_count",
+          "status": 422
+        },
+        {
+          "case": "negative_count",
+          "status": 422
+        },
+        {
+          "case": "oversized_count",
+          "status": 422
+        },
+        {
+          "case": "zero_is_not_false",
+          "status": 422
+        },
+        {
+          "case": "false_is_not_zero",
+          "status": 422
+        }
+      ],
+      "correctness_false": {
+        "actual_stage": null,
+        "is_correct": false,
+        "revision": 2
+      },
+      "persisted_event_count": 11,
+      "aws_calls": 0,
+      "running_service_mutated": false
+    },
+    "deep-review-backend-e03669cb-98e9-4095-b021-ef3648d59f5a.json": {
+      "checked_at_utc": "2026-11-16T07:15:33.310372+00:00",
+      "source_head": "f7f247d884500a454bd65cde51722db887d96d4a",
+      "purpose": "isolated_synthetic_counterexample_review",
+      "scope": "Temporary SQLite and in-process TestClient only. No live service or AWS access.",
+      "results": [
+        {
+          "case": "24_concurrent_identical_predictions",
+          "status": "passed",
+          "events": 1
+        },
+        {
+          "case": "same_key_changed_source",
+          "status": "passed",
+          "http": 409
+        },
+        {
+          "case": "36_concurrent_feedback_requests_12_unique",
+          "status": "passed",
+          "revisions": 12,
+          "old_retry_preserves_latest": true
+        },
+        {
+          "case": "feedback_id_cross_prediction_and_event_kind_collision",
+          "status": "passed",
+          "http": 409
+        },
+        {
+          "case": "latest_committed_revision_through_export_prepare",
+          "status": "passed",
+          "default_demo_rows": 0,
+          "include_demo_supervised_rows": 1,
+          "promotion_eligible": false
+        },
+        {
+          "case": "readme_sample_without_demo_header",
+          "status": "finding",
+          "stored_source": "user",
+          "default_supervised_rows": 1,
+          "promotion_eligible": true
+        },
+        {
+          "case": "same_input_action_conflicting_tf_only",
+          "status": "review_needed",
+          "reward_rows": 2,
+          "rewards": [
+            1,
+            0
+          ],
+          "same_action": true,
+          "same_input_fingerprint": true,
+          "quarantined": 0
+        }
+      ]
+    },
+    "deep-review-backend-fixed-4e465ece-0329-44e5-afc3-a27eeb112e98.json": {
+      "scope": "Synthetic in-process TestClient and temporary SQLite only; no live service or AWS",
+      "results": [
+        {
+          "check": "actual_readme_command_headers_through_export_prepare",
+          "status": "passed",
+          "excluded_demo_events": 2,
+          "supervised_rows": 0
+        },
+        {
+          "check": "api_tf_conflict_now_quarantined",
+          "status": "passed",
+          "reward_rows": 0,
+          "quarantined": 2
+        },
+        {
+          "check": "latest_api_correction_resolves_conflict_without_label_inference",
+          "status": "passed",
+          "reward_rows": 2,
+          "supervised_rows": 0
+        }
+      ]
+    }
+  },
+  "screenshot": {
+    "file": "final-full-flow.jpg",
+    "sha256": "7f88b6266d28da69c3b55052aff3f9f3ae21c080c13231550e3f361ad2a552cf"
+  },
+  "limitations": [
+    "No new remote CloudWatch read/write verification: existing AWS session requires login refresh.",
+    "Human teammate deployment results not received.",
+    "Original invoice-level workbook is unavailable; validated the supplied aggregated CSV.",
+    "One extra simulated deployment-boundary check was blocked by automatic approval review without a detailed reason and was not retried or counted. Independent CI deployment verification is separate."
+  ],
+  "final_ci": {
+    "url": "https://github.com/WHC-MTSC/shopping-week04/actions/runs/43823584126",
+    "run_number": 18,
+    "head": "6935ed5a4bc3843201c75612368a819bce44d129",
+    "jobs": {
+      "quality": "success",
+      "windows_deployment_restart_update_rollback": "success",
+      "source_archive": "success"
+    }
+  }
+}
+
