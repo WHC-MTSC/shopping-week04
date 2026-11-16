@@ -1,0 +1,13 @@
+﻿{
+    "Release":  "C:\\Users\\user\\Documents\\shopping-week04-teamtest\\releases\\20261116-162426-661adcc4",
+    "Port":  18001,
+    "Backend":  "local",
+    "Database":  "C:\\Users\\user\\Documents\\shopping-week04-teamtest\\data\\local\\events.sqlite3",
+    "LogGroup":  "",
+    "LogStream":  "",
+    "Profile":  "workload",
+    "Region":  "ap-northeast-2",
+    "ProcessId":  17796,
+    "ModelFile":  "artifacts\\model.json",
+    "CreatedUtc":  "2026-11-16T07:25:04.0226490Z"
+}
