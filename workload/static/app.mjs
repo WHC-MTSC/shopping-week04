@@ -5,7 +5,8 @@ const $ = id => document.getElementById(id);
 const targetInput = $("target-hour");
 const historyInput = $("history");
 const form = $("forecast-form");
-let source = "user";
+const sourceInput = $("data-source");
+let source = "demo";
 let revision = 0;
 let busy = false;
 let predictionKey = null;
@@ -22,7 +23,7 @@ function showError(message = "") {
 
 function setBusy(value) {
   busy = value;
-  for (const control of [$("predict-button"), $("load-example"), $("csv-file"), targetInput, historyInput]) control.disabled = value;
+  for (const control of [$("predict-button"), $("load-example"), $("csv-file"), sourceInput, targetInput, historyInput]) control.disabled = value;
   form.setAttribute("aria-busy", String(value));
 }
 
@@ -98,7 +99,7 @@ function renderResult(result) {
     row.append(label, track, value);
     $("probability-bars").append(row);
   });
-  $("result-source").textContent = source === "demo" ? "과거 샘플 예측" : "입력한 데이터 예측";
+  $("result-source").textContent = source === "demo" ? "실습·테스트 예측" : "확인된 실제 집계 예측";
   $("result-version").textContent = `${result.model_version.startsWith("practice-") ? "과거 데이터 실습 모델" : "모델"} · ${result.model_version}`;
   $("result-empty").hidden = true;
   $("result").hidden = false;
@@ -158,6 +159,7 @@ $("load-example").addEventListener("click", async () => {
     targetInput.value = example.target_hour.slice(0, 16);
     historyInput.value = toCSV(example.history);
     source = "demo";
+    sourceInput.value = "demo";
     $("source-badge").textContent = "과거 샘플";
     $("file-name").textContent = "샘플 이력 · 2011년 영국 소매 데이터";
     $("csv-file").value = "";
@@ -172,8 +174,8 @@ $("csv-file").addEventListener("change", async event => {
   invalidateResult();
   setBusy(true);
   historyInput.value = "";
-  source = "user";
-  $("source-badge").textContent = "CSV 입력";
+  source = sourceInput.value;
+  $("source-badge").textContent = source === "demo" ? "CSV · 실습" : "CSV · 실제 집계";
   $("file-name").textContent = file.name;
   checkInput();
   try {
@@ -186,10 +188,16 @@ $("csv-file").addEventListener("change", async event => {
 
 for (const input of [targetInput, historyInput]) input.addEventListener("input", () => {
   invalidateResult();
-  source = "user";
-  $("source-badge").textContent = "직접 입력";
+  source = sourceInput.value;
+  $("source-badge").textContent = source === "demo" ? "직접 입력 · 실습" : "직접 입력 · 실제 집계";
   $("file-name").textContent = "직접 수정한 데이터";
   checkInput();
+});
+
+sourceInput.addEventListener("change", () => {
+  invalidateResult();
+  source = sourceInput.value;
+  $("source-badge").textContent = source === "demo" ? "실습·테스트" : "확인된 실제 집계";
 });
 
 form.addEventListener("submit", async event => {

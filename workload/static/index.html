@@ -50,11 +50,14 @@
             <div class="label-row"><label class="field-label" for="history">직전 168시간 이력</label><button id="download-example" type="button" class="text-button">CSV 예시 ↓</button></div>
             <div class="upload-box"><span class="upload-icon" aria-hidden="true">↑</span><div><label for="csv-file">CSV 파일 불러오기</label><small id="file-name">hour, count 열 · 최대 1 MB</small></div><input id="csv-file" type="file" accept=".csv,text/csv" aria-label="판매전표 CSV 파일 선택"></div>
             <details id="csv-editor"><summary>직접 입력 / 수정</summary><textarea id="history" spellcheck="false" aria-label="판매전표 CSV 내용" aria-describedby="csv-help" placeholder="hour,count&#10;2011-09-20T06:00:00,0&#10;2011-09-20T07:00:00,0&#10;…" rows="7"></textarea></details>
-            <p id="csv-help" class="field-help">168시간 전부터 1시간 전까지 오름차순. 누락·중복 없이, 건수는 0~100,000의 정수로 입력합니다.</p>
+            <p id="csv-help" class="field-help">168시간 전부터 1시간 전까지 오름차순. 누락·중복 없이, 시간별 양수 판매전표 건수를 0~100,000의 정수로 입력합니다. 상품 수량이나 매출액이 아닙니다.</p>
+            <label class="field-label" for="data-source">데이터 출처</label>
+            <select id="data-source" class="data-source-select" aria-describedby="source-help"><option value="demo" selected>실습·테스트 데이터 (학습 대상 제외)</option><option value="user">확인된 실제 판매 집계</option></select>
+            <p id="source-help" class="field-help">샘플·가상값·과거 데이터 재생은 실습으로 남기세요. 실제 집계일 때만 실데이터로 선택합니다.</p>
             <div id="input-status" class="input-status" role="status">데이터 없음 · 샘플 또는 CSV 선택</div>
             <div id="form-error" class="error-message" role="alert" hidden></div>
             <button id="predict-button" type="submit" class="button primary">예측 실행 <span aria-hidden="true">→</span></button>
-            <p class="privacy-note">입력·예측·정답을 기록합니다. S3 연결 전에는 로컬에 보관합니다.</p>
+            <p class="privacy-note">입력·예측·정답을 로컬에 먼저 기록하고, 설정에 따라 S3 또는 CloudWatch로 전송합니다. 아래 저장 상태에서 실제 전송 여부를 확인하세요.</p>
           </form>
         </section>
         <section class="card result-card" aria-labelledby="result-title">
@@ -87,7 +90,7 @@
         </form>
         <div id="feedback-error" class="error-message" role="alert" hidden></div><p id="feedback-result" class="feedback-result" role="status"></p><p id="log-summary" class="log-summary" role="status">로그 저장 상태 확인 중</p>
       </section>
-      <section id="guide" class="guide"><div><span class="section-kicker">02 / MODEL</span><h2>모델 정보</h2></div><div class="guide-copy"><p><strong>예측 대상</strong> 양수 판매전표 건수에 따른 작업량 단계. 정확한 건수·처리 시간·필요 인원은 예측하지 않습니다.</p><p><strong>입력 조건</strong> 직전 시간까지 집계가 끝난 실제 건수. 예측값을 이력에 넣는 여러 시간 앞 예측은 검증하지 않았습니다.</p><p><strong>과거 평가</strong> 1,758시간 기준 단계 정확도 90.56%, 혼잡 재현율 85.71%. 주문이 있는 시간의 정확도는 76.46%입니다. 새 점포는 별도 검증이 필요합니다.</p></div></section>
+      <section id="guide" class="guide"><div><span class="section-kicker">02 / MODEL</span><h2>모델 정보</h2></div><div class="guide-copy"><p><strong>예측 대상</strong> 양수 판매전표 건수에 따른 작업량 단계. 정확한 건수·처리 시간·필요 인원은 예측하지 않습니다.</p><p><strong>입력 조건</strong> 직전 시간까지 집계가 끝난 실제 건수. 예측값을 이력에 넣는 여러 시간 앞 예측은 검증하지 않았습니다.</p><p><strong>기본 모델의 과거 평가</strong> 버전 77f4c9c1af34의 1,758시간 기준 단계 정확도 90.56%, 혼잡 재현율 85.71%. 판매전표가 있는 시간의 정확도는 76.46%입니다. 교체한 모델의 점수가 아니며, 새 점포는 별도 검증이 필요합니다.</p></div></section>
       <footer><span>HOURAHEAD <span class="footer-separator">/</span> 작업량 예측</span><span>사용자 정답 · 예측 로그 수집</span></footer>
       <noscript><p class="error-message">이 화면에서 예측하려면 JavaScript를 활성화하세요. API는 /docs에서 확인할 수 있습니다.</p></noscript>
     </main>

@@ -35,7 +35,7 @@ function selectPrediction(id, result, source, status) {
   submissionId = null;
   feedbackVersion += 1;
   $("prediction-id").value = id;
-  $("feedback-context").textContent = `${result.target_hour.slice(0, 16).replace("T", " ")} · 예측 ${stageNames[result.workload_stage]} · ${source === "demo" ? "과거 샘플" : "사용자 데이터"}`;
+  $("feedback-context").textContent = `${result.target_hour.slice(0, 16).replace("T", " ")} · 예측 ${stageNames[result.workload_stage]} · ${source === "demo" ? "실습·테스트 데이터" : "사용자 데이터"}`;
   $("prediction-delivery").textContent = deliveryNames[status];
   $("feedback-form").hidden = false;
   $("feedback-result").textContent = "정답을 아직 입력하지 않았습니다.";

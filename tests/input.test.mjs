@@ -208,3 +208,69 @@ test("log filters encode user text and preserve the pagination cursor", () => {
   assert.equal(url.searchParams.get("limit"), "50");
   assert.equal(new URL(buildLogQuery(), "http://test.invalid").searchParams.has("before"), false);
 });
+
+test("forecast source requires an explicit real-data choice and sample loading resets it", async () => {
+  // Exercise the actual event handlers with DOM/fetch doubles, without a browser or network.
+  const previous = { document: globalThis.document, fetch: globalThis.fetch, localStorage: globalThis.localStorage };
+  const elements = new Map();
+  const makeElement = () => ({
+    value: "", textContent: "", hidden: false, disabled: false, style: {}, parentElement: {},
+    listeners: new Map(),
+    addEventListener(name, listener) { this.listeners.set(name, listener); },
+    async emit(name, extra = {}) { await this.listeners.get(name)?.({ preventDefault() {}, target: this, ...extra }); },
+    setAttribute() {}, append() {}, replaceChildren() {}, after() {},
+  });
+  const element = id => {
+    if (!elements.has(id)) elements.set(id, makeElement());
+    return elements.get(id);
+  };
+  const requests = [];
+  let lastResult;
+  const response = data => ({ ok: true, async json() { return data; } });
+  try {
+    globalThis.document = { getElementById: element, createElement: makeElement, createElementNS: makeElement };
+    globalThis.localStorage = { getItem() { return null; }, setItem() {} };
+    globalThis.fetch = async (path, options = {}) => {
+      if (path === "/example") return response(example);
+      if (path === "/health") return response({ status: "ready" });
+      if (path === "/metadata") return response({ model_purpose: "historical_baseline" });
+      if (path === "/logging") return response({ destination: "local", pending_events: 0 });
+      if (path === "/predict") {
+        requests.push(options);
+        lastResult = { target_hour: example.target_hour, workload_stage: "idle", probabilities: [1, 0, 0], model_version: "test", prediction_id: options.headers["Idempotency-Key"], log_status: "local" };
+        return response(lastResult);
+      }
+      if (path.startsWith("/predictions/")) return response({ event: { response: lastResult }, log_status: "local", latest_feedback: null });
+      throw new Error(`Unexpected request: ${path}`);
+    };
+    element("data-source").value = "demo";
+    element("feedback-kind").value = "actual_count";
+    await import("../workload/static/app.mjs?unit-source");
+    await element("load-example").emit("click");
+    await element("history").emit("input");
+    await element("forecast-form").emit("submit");
+    assert.equal(requests.at(-1).headers["X-Data-Source"], "demo", "Editing a sample must not promote it to real data");
+
+    const sampleKey = requests.at(-1).headers["Idempotency-Key"];
+    element("data-source").value = "user";
+    await element("data-source").emit("change");
+    assert.equal(element("result").hidden, true);
+    await element("forecast-form").emit("submit");
+    assert.equal(requests.at(-1).headers["X-Data-Source"], "user");
+    assert.notEqual(requests.at(-1).headers["Idempotency-Key"], sampleKey);
+
+    await element("load-example").emit("click");
+    assert.equal(element("data-source").value, "demo");
+    element("csv-file").files = [{ name: "downloaded-example.csv", size: csv.length, async text() { return csv; } }];
+    await element("csv-file").emit("change");
+    await element("forecast-form").emit("submit");
+    assert.equal(requests.at(-1).headers["X-Data-Source"], "demo", "Reuploading the sample preserves the explicit demo choice");
+    assert.match(element("result-source").textContent, /실습/);
+  } finally {
+    await new Promise(resolve => setImmediate(resolve));
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete globalThis[key];
+      else globalThis[key] = value;
+    }
+  }
+});

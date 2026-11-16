@@ -27,6 +27,8 @@ jobs:
     needs: quality
     runs-on: windows-latest
     timeout-minutes: 30
+    env:
+      HOURAHEAD_CI_ROOT: ${{ runner.temp }}\hourahead-recipient-${{ github.run_id }}-${{ github.run_attempt }}
     defaults:
       run:
         shell: pwsh
@@ -40,21 +42,27 @@ jobs:
         run: |
           ./scripts/test-deploy-preflight.ps1
           ./scripts/test-deploy-process.ps1
+          ./scripts/test-install-root.ps1
+          ./scripts/test-verify-service.ps1
       - name: Deploy, restart, update and roll back locally
         run: |
           $ErrorActionPreference = 'Stop'
           $source = (Get-Location).Path
           $deploy = Join-Path $source 'scripts/deploy-local.ps1'
-          $parameters = @{ SourcePath = $source; Port = 8001; Backend = 'local' }
+          $install = $env:HOURAHEAD_CI_ROOT
+          if (Test-Path -LiteralPath $install) { throw 'Recipient installation must start in a new directory.' }
+          $parameters = @{ SourcePath = $source; InstallRoot = $install; Port = 18001; Backend = 'local' }
+          $acceptance = Join-Path $env:RUNNER_TEMP 'hourahead-acceptance.json'
+          $persistence = Join-Path $env:RUNNER_TEMP 'hourahead-persistence.json'
 
           function Write-DeploymentSnapshot([string]$Label, [bool]$ExpectedRunning = $true) {
-            $snapshot = & $deploy -Action Status
+            $snapshot = & $deploy -Action Status -InstallRoot $install
             $json = $snapshot | ConvertTo-Json -Depth 5
             @("### $Label", '', '```json', $json, '```', '') |
               Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
             if ($null -eq $snapshot -or $snapshot -is [string] -or
                 $snapshot.Running -ne $ExpectedRunning -or $snapshot.Backend -ne 'local' -or
-                $snapshot.Port -ne 8001) {
+                $snapshot.Port -ne 18001 -or $snapshot.InstallRoot -ne $install) {
               throw "Unexpected deployment status after $Label."
             }
             return $snapshot
@@ -73,7 +81,7 @@ jobs:
           }
           Remove-Item Env:\WORKLOAD_MODEL_PATH
           $first = Write-DeploymentSnapshot 'First deployment'
-          $install = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Hourahead'
+          & ./scripts/verify-service.ps1 -BaseUrl http://127.0.0.1:18001 -OutputPath $acceptance
           $stateFile = Join-Path $install 'current.json'
           $stateBefore = (Get-FileHash -LiteralPath $stateFile).Hash
           $releasesBefore = @(Get-ChildItem -LiteralPath (Join-Path $install 'releases') -Directory).Count
@@ -91,27 +99,30 @@ jobs:
             throw 'Practice candidate rejection changed the active installation.'
           }
           $null = Write-DeploymentSnapshot 'Practice candidate rejected without transition'
-          & $deploy -Action Stop
+          & $deploy -Action Stop -InstallRoot $install
           $null = Write-DeploymentSnapshot 'Stopped' $false
-          & $deploy -Action Start
+          & $deploy -Action Start -InstallRoot $install
           $restarted = Write-DeploymentSnapshot 'Restarted'
           if ($restarted.Release -ne $first.Release) { throw 'Restart changed the release.' }
+          & ./scripts/verify-service.ps1 -BaseUrl http://127.0.0.1:18001 -PreviousReport $acceptance -OutputPath $persistence
 
           & $deploy -Action Deploy @parameters
           $second = Write-DeploymentSnapshot 'Second deployment'
           if (Test-Path Env:\WORKLOAD_MODEL_PATH) { throw 'Deployment left a previously absent model environment variable.' }
           if ($second.Release -eq $first.Release) { throw 'Update did not create a new release.' }
-          & $deploy -Action Rollback
+          & $deploy -Action Rollback -InstallRoot $install
           $rolledBack = Write-DeploymentSnapshot 'Rolled back'
           if ($rolledBack.Release -ne $first.Release) { throw 'Rollback did not restore the first release.' }
+          & ./scripts/verify-service.ps1 -BaseUrl http://127.0.0.1:18001 -PreviousReport $acceptance
       - name: Always stop the owned test server
         if: always()
         run: |
           $ErrorActionPreference = 'Stop'
           $deploy = Join-Path (Get-Location).Path 'scripts/deploy-local.ps1'
-          if (Test-Path -LiteralPath $deploy) {
-            & $deploy -Action Stop
-            $snapshot = & $deploy -Action Status
+          $install = $env:HOURAHEAD_CI_ROOT
+          if ((Test-Path -LiteralPath $deploy) -and (Test-Path -LiteralPath $install)) {
+            & $deploy -Action Stop -InstallRoot $install
+            $snapshot = & $deploy -Action Status -InstallRoot $install
             @('### Cleanup', '', '```json', ($snapshot | ConvertTo-Json -Depth 5), '```', '') |
               Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
             if ($null -ne $snapshot -and $snapshot -isnot [string] -and $snapshot.Running) {

@@ -3,6 +3,8 @@ param(
     [ValidateSet('Deploy', 'Start', 'Stop', 'Status', 'Rollback')]
     [string]$Action = 'Deploy',
     [string]$SourcePath = (Split-Path -Parent $PSScriptRoot),
+    [ValidateNotNullOrEmpty()]
+    [string]$InstallRoot = (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Hourahead'),
     [ValidateRange(1024, 65535)][int]$Port = 8001,
     [ValidateSet('local', 'cloudwatch')][string]$Backend = 'local',
     [string]$LogGroup = '',
@@ -19,10 +21,52 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$install = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Hourahead'
+
+function Assert-NoReparseAncestors([string]$Path) {
+    $cursor = [IO.Path]::GetFullPath($Path)
+    while ($cursor) {
+        $item = Get-Item -LiteralPath $cursor -Force -ErrorAction SilentlyContinue
+        if ($null -ne $item) {
+            if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+                throw 'InstallRoot and managed paths cannot contain links or junctions.'
+            }
+        }
+        $cursor = [IO.Path]::GetDirectoryName($cursor)
+    }
+}
+
+function Resolve-InstallRoot([string]$Path) {
+    if ($Path -notmatch '^[A-Za-z]:[\\/]' -or $Path.Substring(3) -match '[<>:"|?*\[\]\x00-\x1f]') {
+        throw 'InstallRoot must be an absolute local drive path without wildcard or device syntax.'
+    }
+    $segments = $Path.Substring(3).TrimEnd('\', '/') -split '[\\/]'
+    foreach ($segment in $segments) {
+        if (-not $segment -or $segment -match '[. ]$' -or
+            $segment -match '^(?i:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)') {
+            throw 'InstallRoot contains an unsafe path segment.'
+        }
+    }
+    $full = [IO.Path]::GetFullPath($Path).TrimEnd('\', '/')
+    $protected = @([IO.Path]::GetPathRoot($full).TrimEnd('\'),
+        [Environment]::GetFolderPath('UserProfile'), [Environment]::GetFolderPath('MyDocuments'))
+    if ($full -in $protected -or ($env:WINDIR -and
+        ($full -eq $env:WINDIR -or $full.StartsWith($env:WINDIR.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)))) {
+        throw 'InstallRoot must be a dedicated installation directory.'
+    }
+    if ((Test-Path -LiteralPath $full) -and -not (Test-Path -LiteralPath $full -PathType Container)) {
+        throw 'InstallRoot must be a directory.'
+    }
+    Assert-NoReparseAncestors $full
+    return $full
+}
+
+$install = Resolve-InstallRoot $InstallRoot
 $releases = Join-Path $install 'releases'
 $currentFile = Join-Path $install 'current.json'
 $previousFile = Join-Path $install 'previous.json'
+foreach ($managed in @('releases', 'data', 'process-logs', 'current.json', 'previous.json', 'deploy-local.ps1')) {
+    Assert-NoReparseAncestors (Join-Path $install $managed)
+}
 
 function Get-ByteDigest([byte[]]$Bytes) {
     $sha = [Security.Cryptography.SHA256]::Create()
@@ -76,6 +120,7 @@ function Assert-ReleasePath([string]$Path) {
         throw 'Release path is outside the Hourahead installation.'
     }
     if (-not (Test-Path -LiteralPath $full -PathType Container)) { throw 'Release missing.' }
+    Assert-NoReparseAncestors $full
     return $full
 }
 
@@ -292,21 +337,37 @@ function Activate($Config, $Old) {
     }
 }
 
+function Get-StartupRegistration([string]$Root) {
+    $resolved = Resolve-InstallRoot $Root
+    $default = [IO.Path]::GetFullPath((Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Hourahead'))
+    $name = 'Hourahead.lnk'
+    if ($resolved -ne $default) {
+        $key = Get-ByteDigest ([Text.Encoding]::UTF8.GetBytes($resolved.ToUpperInvariant()))
+        $name = 'Hourahead-' + $key.Substring(0, 12) + '.lnk'
+    }
+    $launcher = Join-Path $resolved 'deploy-local.ps1'
+    return [pscustomobject]@{
+        Name = $name; Launcher = $launcher; WorkingDirectory = $resolved
+        Arguments = '-NoProfile -WindowStyle Hidden -File "' + $launcher + '" -Action Start -InstallRoot "' + $resolved + '"'
+    }
+}
+
 function Install-Startup {
     $startup = [Environment]::GetFolderPath('Startup')
     if (-not $startup -or -not (Test-Path -LiteralPath $startup -PathType Container)) {
         throw 'Current-user Startup folder is unavailable.'
     }
-    $launcher = Join-Path $install 'deploy-local.ps1'
+    $registration = Get-StartupRegistration $install
+    $launcher = $registration.Launcher
     if ([IO.Path]::GetFullPath($PSCommandPath) -ne [IO.Path]::GetFullPath($launcher)) {
         Copy-Item -LiteralPath $PSCommandPath -Destination $launcher -Force
     }
     $shell = New-Object -ComObject WScript.Shell
-    $link = $shell.CreateShortcut((Join-Path $startup 'Hourahead.lnk'))
+    $link = $shell.CreateShortcut((Join-Path $startup $registration.Name))
     $link.TargetPath = Join-Path $PSHOME 'powershell.exe'
     if (-not (Test-Path -LiteralPath $link.TargetPath)) { $link.TargetPath = Join-Path $PSHOME 'pwsh.exe' }
-    $link.Arguments = '-NoProfile -WindowStyle Hidden -File "' + $launcher + '" -Action Start'
-    $link.WorkingDirectory = $install
+    $link.Arguments = $registration.Arguments
+    $link.WorkingDirectory = $registration.WorkingDirectory
     $link.WindowStyle = 7
     $link.Save()
 }
@@ -317,13 +378,23 @@ if ($ModelPath -or $ModelReportPath) {
     # Read-only preflight precedes every installation, process and Startup mutation.
     $approvedCandidate = Get-ApprovedCandidate $ModelPath $ModelReportPath
 }
-New-Item -ItemType Directory -Path $releases -Force | Out-Null
+if ($Action -eq 'Deploy') {
+    $source = (Resolve-Path -LiteralPath $SourcePath).Path
+    if (-not (Test-Path -LiteralPath $source -PathType Container)) { throw 'SourcePath must be a directory.' }
+    foreach ($directory in @('workload', 'tests', 'artifacts', 'data', 'examples', '.github')) {
+        $inputPath = Join-Path $source $directory
+        if ($install -eq $inputPath -or $install.StartsWith($inputPath + '\', [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'InstallRoot cannot be inside a copied source directory.'
+        }
+    }
+    New-Item -ItemType Directory -Path $releases -Force | Out-Null
+}
 $current = Read-State $currentFile
 switch ($Action) {
     'Status' {
         if ($null -eq $current) { Write-Output 'Not deployed.'; break }
         $running = $null -ne (Get-OwnedProcess $current -AllowStale)
-        [pscustomobject]@{ Running = $running; Release = $current.Release; Port = $current.Port; Backend = $current.Backend }
+        [pscustomobject]@{ Running = $running; InstallRoot = $install; Release = $current.Release; Port = $current.Port; Backend = $current.Backend }
     }
     'Stop' { Stop-Owned $current; Write-Output 'Owned server stopped; release preserved.' }
     'Start' {
@@ -343,7 +414,6 @@ switch ($Action) {
         if ($Backend -eq 'cloudwatch' -and (-not $LogGroup -or -not $LogStream -or -not $Profile)) {
             throw 'CloudWatch requires an existing group, stream and local profile.'
         }
-        $source = (Resolve-Path -LiteralPath $SourcePath).Path
         $release = Join-Path $releases ((Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
         New-Item -ItemType Directory -Path $release | Out-Null
         foreach ($name in @('pyproject.toml', 'uv.lock', 'train.py', 'workload', 'tests', 'artifacts', 'data', 'examples', '.github')) {
