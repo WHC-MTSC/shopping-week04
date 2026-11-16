@@ -1,0 +1,93 @@
+{
+  "checked_on": "2026-11-16",
+  "source_commit": "91e054f780dc9b8826dba7425eadb08b8687f8f2",
+  "workflow_url": "https://github.com/WHC-MTSC/shopping-week04/actions/runs/43819199384",
+  "status": "passed",
+  "jobs": [
+    {
+      "name": "quality",
+      "id": 133138098193,
+      "conclusion": "success"
+    },
+    {
+      "name": "Windows local deployment smoke test",
+      "id": 133138388688,
+      "conclusion": "success"
+    },
+    {
+      "name": "Archive verified committed source",
+      "id": 133139350580,
+      "conclusion": "success"
+    }
+  ],
+  "acceptance_reports": [
+    {
+      "status": "passed",
+      "checked_at_utc": "2026-11-16T06:49:43.7744634Z",
+      "verification": "prediction_and_feedback",
+      "base_url": "http://127.0.0.1:18001",
+      "model_version": "77f4c9c1af34",
+      "model_sha256": "6bb6a0822739c21c398ec932e81117cc422b6e2d90060a134fd666603916dba3",
+      "prediction_id": "f8e23950-50ae-4ae4-b54a-880694759abc",
+      "feedback_id": "4aa16d4a-8204-40a6-8b01-c0eb08997af9",
+      "feedback_revision": 2,
+      "canonical_version": 1,
+      "prediction_event_id": "1ec8b50f-3dc9-4129-be09-660a069a29bd",
+      "prediction_event_sha256": "f1694c30041577eec46dbf9d9300233436e1517d65a44e58ca815c381735d8f8",
+      "feedback_event_sha256": "e7b1aebd11cf73370cd6a2f55fe75f184274f94e51843f38cf879c21f3c498f6",
+      "count_feedback_id": "0707b40e-50e5-44e7-be8f-82007aa06420",
+      "count_feedback_sha256": "e17894b00b83bc88ab451b03fd4701b9d405b513104bc3911b8a828bbd46da3b",
+      "data_source": "demo",
+      "feedback_values": "Synthetic count=0 and correctness=false; not ground truth",
+      "event_count": 3,
+      "logging_destination": "local",
+      "remote_delivery_verified": false
+    },
+    {
+      "status": "passed",
+      "checked_at_utc": "2026-11-16T06:49:45.9124472Z",
+      "verification": "persistence",
+      "base_url": "http://127.0.0.1:18001",
+      "model_version": "77f4c9c1af34",
+      "model_sha256": "6bb6a0822739c21c398ec932e81117cc422b6e2d90060a134fd666603916dba3",
+      "prediction_id": "f8e23950-50ae-4ae4-b54a-880694759abc",
+      "feedback_id": "4aa16d4a-8204-40a6-8b01-c0eb08997af9",
+      "feedback_revision": 2,
+      "canonical_version": 1,
+      "prediction_event_id": "1ec8b50f-3dc9-4129-be09-660a069a29bd",
+      "prediction_event_sha256": "f1694c30041577eec46dbf9d9300233436e1517d65a44e58ca815c381735d8f8",
+      "feedback_event_sha256": "e7b1aebd11cf73370cd6a2f55fe75f184274f94e51843f38cf879c21f3c498f6",
+      "count_feedback_id": "0707b40e-50e5-44e7-be8f-82007aa06420",
+      "count_feedback_sha256": "e17894b00b83bc88ab451b03fd4701b9d405b513104bc3911b8a828bbd46da3b",
+      "data_source": "demo",
+      "feedback_values": "Synthetic count=0 and correctness=false; not ground truth",
+      "event_count": 3,
+      "logging_destination": "local",
+      "remote_delivery_verified": false
+    },
+    {
+      "status": "passed",
+      "checked_at_utc": "2026-11-16T06:50:38.3259047Z",
+      "verification": "persistence",
+      "base_url": "http://127.0.0.1:18001",
+      "model_version": "77f4c9c1af34",
+      "model_sha256": "6bb6a0822739c21c398ec932e81117cc422b6e2d90060a134fd666603916dba3",
+      "prediction_id": "f8e23950-50ae-4ae4-b54a-880694759abc",
+      "feedback_id": "4aa16d4a-8204-40a6-8b01-c0eb08997af9",
+      "feedback_revision": 2,
+      "canonical_version": 1,
+      "prediction_event_id": "1ec8b50f-3dc9-4129-be09-660a069a29bd",
+      "prediction_event_sha256": "f1694c30041577eec46dbf9d9300233436e1517d65a44e58ca815c381735d8f8",
+      "feedback_event_sha256": "e7b1aebd11cf73370cd6a2f55fe75f184274f94e51843f38cf879c21f3c498f6",
+      "count_feedback_id": "0707b40e-50e5-44e7-be8f-82007aa06420",
+      "count_feedback_sha256": "e17894b00b83bc88ab451b03fd4701b9d405b513104bc3911b8a828bbd46da3b",
+      "data_source": "demo",
+      "feedback_values": "Synthetic count=0 and correctness=false; not ground truth",
+      "event_count": 3,
+      "logging_destination": "local",
+      "remote_delivery_verified": false
+    }
+  ],
+  "human_team_deployment": "Pending separately, per user instruction",
+  "scope": "Fresh GitHub Windows runner; isolated install root/venv/database; local backend, no AWS delivery verification"
+}
