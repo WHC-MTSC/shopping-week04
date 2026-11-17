@@ -1,0 +1,7 @@
+{
+  "target_hour": "2011-09-27T06:00:00",
+  "workload_stage": "idle",
+  "stage_range": "0",
+  "probabilities": [0.9786943659488794, 0.01979422032917399, 0.00151141372194481],
+  "model_version": "77f4c9c1af34"
+}
