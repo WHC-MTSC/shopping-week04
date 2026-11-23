@@ -40,7 +40,9 @@ def register_log_errors(application: FastAPI) -> None:
         )
 
 
-def log_router(store: LogStore, region: str) -> APIRouter:
+def log_router(
+    store: LogStore, region: str, *, log_group: str | None = None, log_stream: str | None = None
+) -> APIRouter:
     router = APIRouter()
 
     @router.get("/predictions/{prediction_id}", summary="저장된 예측과 최신 정답 조회")
@@ -73,9 +75,11 @@ def log_router(store: LogStore, region: str) -> APIRouter:
             )
         )
 
-    @router.get("/logging", summary="로그 저장 및 S3 전송 상태")
+    @router.get("/logging", summary="로그 저장 및 AWS 전송 상태")
     def logging_status() -> LoggingStatus:
-        return store.status(region)
+        return store.status(region).model_copy(
+            update={"log_group": log_group, "log_stream": log_stream}
+        )
 
     @router.get("/logs", summary="수집한 예측·정답 로그 검색")
     def logs(

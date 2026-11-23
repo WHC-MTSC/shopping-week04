@@ -99,7 +99,7 @@ function renderResult(result) {
     $("probability-bars").append(row);
   });
   $("result-source").textContent = source === "demo" ? "과거 샘플 예측" : "입력한 데이터 예측";
-  $("result-version").textContent = `모델 · ${result.model_version}`;
+  $("result-version").textContent = `${result.model_version.startsWith("practice-") ? "과거 데이터 실습 모델" : "모델"} · ${result.model_version}`;
   $("result-empty").hidden = true;
   $("result").hidden = false;
   recordPrediction(result, source);
@@ -232,10 +232,22 @@ $("download-example").addEventListener("click", async () => {
 
 async function checkServer() {
   try {
-    const health = await fetchJSON("/health");
+    const [health, metadata] = await Promise.all([fetchJSON("/health"), fetchJSON("/metadata")]);
     if (health.status !== "ready") throw new Error("모델 준비 중");
-    $("server-status").textContent = "예측 모델 연결됨";
+    $("server-status").textContent = metadata.model_purpose === "historical_replay" ? "과거 데이터 실습 모델 연결됨" : "예측 모델 연결됨";
     $("server-status").className = "connection ready";
+    if (metadata.model_purpose === "historical_replay") {
+      const notice = document.createElement("div");
+      notice.className = "context-strip";
+      notice.setAttribute("role", "status");
+      const label = document.createElement("span");
+      label.className = "context-label";
+      label.textContent = "재학습 실습";
+      const description = document.createElement("p");
+      description.textContent = `${metadata.model_notice} 모델 버전: ${metadata.model_version}`;
+      notice.append(label, description);
+      document.querySelector(".page-heading").after(notice);
+    }
   } catch {
     $("server-status").textContent = "연결 실패 · 예측 시 재시도";
     $("server-status").className = "connection failed";

@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import mimetypes
+import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -14,7 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
-from workload.artifact import STAGE_RANGES, STAGES, ForestArtifact
+from workload.artifact import STAGE_RANGES, STAGES, ForestArtifact, TrainingPurpose
 from workload.features import FEATURE_NAMES, feature_values
 from workload.log_delivery import EventSink, LogDelivery, LogSettings, build_sink
 from workload.log_models import PredictionEvent, RecordedForecast
@@ -29,6 +30,9 @@ EXAMPLE_PATH: Final = Path(__file__).resolve().parents[1] / "examples/request.js
 
 class MetadataResponse(FrozenModel):
     model_version: str
+    model_sha256: str
+    model_purpose: TrainingPurpose
+    model_notice: str | None = None
     feature_names: tuple[str, ...]
     used_feature_names: tuple[str, ...]
     feature_note: str = (
@@ -58,10 +62,17 @@ class ValidationIssue(BaseModel):
     msg: str
 
 
-def model_metadata(loaded: ForestArtifact) -> MetadataResponse:
+def model_metadata(loaded: ForestArtifact, model_hash: str) -> MetadataResponse:
     used_indices = {index for tree in loaded.trees for index in tree.feature if index >= 0}
     return MetadataResponse(
         model_version=loaded.model_version,
+        model_sha256=model_hash,
+        model_purpose=loaded.training_purpose,
+        model_notice=(
+            "과거 데이터 재학습·교체 실습 모델입니다. 실데이터 운영 승격 대상이 아닙니다."
+            if loaded.training_purpose == "historical_replay"
+            else None
+        ),
         feature_names=loaded.feature_names,
         used_feature_names=tuple(
             name for index, name in enumerate(loaded.feature_names) if index in used_indices
@@ -79,12 +90,30 @@ def validation_error_handler(_request: Request, exc: RequestValidationError) -> 
     )
 
 
+def configured_model_path(model_path: Path | None) -> Path:
+    return (
+        model_path
+        if model_path is not None
+        else Path(os.environ.get("WORKLOAD_MODEL_PATH", str(DEFAULT_MODEL_PATH)))
+    )
+
+
+def initialize_log_store(settings: LogSettings, store: LogStore) -> None:
+    store.initialize()
+    if settings.backend == "cloudwatch":
+        # Settings validation requires both names before the worker can start.
+        store.bind_cloudwatch_destination(
+            settings.region, settings.log_group or "", settings.log_stream or ""
+        )
+
+
 def create_app(
-    model_path: Path = DEFAULT_MODEL_PATH,
+    model_path: Path | None = None,
     *,
     log_settings: LogSettings | None = None,
     log_sink: EventSink | None = None,
 ) -> FastAPI:
+    artifact_path = configured_model_path(model_path)
     model: ForestArtifact | None = None
     model_hash = ""
     settings = log_settings or LogSettings.from_env()
@@ -92,16 +121,17 @@ def create_app(
         settings.database,
         remote=settings.backend == "s3",
         simulated=settings.backend == "local-s3",
+        cloudwatch=settings.backend == "cloudwatch",
     )
     delivery = LogDelivery(store, log_sink or build_sink(settings))
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
         nonlocal model, model_hash
-        model_bytes = await asyncio.to_thread(model_path.read_bytes)
+        model_bytes = await asyncio.to_thread(artifact_path.read_bytes)
         model = ForestArtifact.model_validate_json(model_bytes)
         model_hash = hashlib.sha256(model_bytes).hexdigest()
-        store.initialize()
+        initialize_log_store(settings, store)
         stop = asyncio.Event()
         worker = asyncio.create_task(delivery.run(stop))
         try:
@@ -117,7 +147,8 @@ def create_app(
             "쇼핑몰 운영 담당자가 완료된 직전 168시간의 판매전표 건수로 "
             "목표 정각부터 한 시간의 작업량 단계(없음 0건 / 보통 1~9건 / 혼잡 10건 이상)를 "
             "확인하는 로컬 검증용 서비스입니다. 원본 영국 현지 시각을 사용합니다. "
-            "입력·예측·사용자 정답을 로컬에 기록하고, 설정된 S3로 재시도하며 전송합니다."
+            "입력·예측·사용자 정답을 로컬에 기록하고, "
+            "설정된 AWS 저장 대상으로 재시도하며 전송합니다."
         ),
         version="0.1.0",
         lifespan=lifespan,
@@ -140,7 +171,11 @@ def create_app(
 
     _ = application.exception_handler(RequestValidationError)(validation_error_handler)
     register_log_errors(application)
-    application.include_router(log_router(store, settings.region))
+    application.include_router(
+        log_router(
+            store, settings.region, log_group=settings.log_group, log_stream=settings.log_stream
+        )
+    )
 
     def ready_model() -> ForestArtifact:
         if model is None:
@@ -154,7 +189,7 @@ def create_app(
 
     @application.get("/metadata")
     def metadata() -> MetadataResponse:
-        return model_metadata(ready_model())
+        return model_metadata(ready_model(), model_hash)
 
     @application.post("/predict", summary="다음 한 시간의 작업량 단계 예측")
     def predict(

@@ -6,8 +6,8 @@ from pydantic import AwareDatetime, Field, StrictBool
 from workload.schemas import Count, ForecastRequest, ForecastResponse, FrozenModel
 
 Stage = Literal["idle", "normal", "busy"]
-Delivery = Literal["local", "pending", "sent", "simulated"]
-LogBackend = Literal["local", "s3", "local-s3"]
+Delivery = Literal["local", "pending", "sent", "simulated", "cloudwatch_sent"]
+LogBackend = Literal["local", "s3", "local-s3", "cloudwatch"]
 EventType = Literal["prediction", "feedback"]
 
 
@@ -85,6 +85,8 @@ class PredictionDetail(FrozenModel):
 class LoggingStatus(FrozenModel):
     destination: LogBackend
     region: str
+    log_group: str | None = None
+    log_stream: str | None = None
     pending_events: int
     sent_events: int
     failed_events: int

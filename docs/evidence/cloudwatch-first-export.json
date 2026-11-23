@@ -1,0 +1,15 @@
+{
+  "source": "cloudwatch",
+  "group": "/shopping-week04/workload",
+  "stream": "pc-local",
+  "region": "ap-northeast-2",
+  "start_utc": "2026-11-09T07:30:00Z",
+  "end_utc": "2026-11-09T07:45:16Z",
+  "start_time_ms": 1794209400000,
+  "end_time_ms": 1794210316000,
+  "status": "complete",
+  "count": 3,
+  "sha256": "bbc79064e586e2ace0d7b3a3a85d648fa20c346b643988198bf432dfc5258d98",
+  "file": "events.jsonl",
+  "exported_at": "2026-11-09T07:45:17.400875+00:00"
+}

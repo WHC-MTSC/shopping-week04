@@ -2,7 +2,7 @@ import { makeFeedback } from "./input.mjs";
 
 const $ = id => document.getElementById(id);
 const stageNames = { idle: "없음", normal: "보통", busy: "혼잡" };
-const deliveryNames = { local: "로컬 저장 완료 · S3 미연결", pending: "로컬 저장 완료 · S3 전송 대기", sent: "실제 S3 저장 완료", simulated: "로컬 S3 모사 저장 완료" };
+const deliveryNames = { local: "로컬 저장 완료 · AWS 미연결", pending: "로컬 저장 완료 · AWS 전송 대기", sent: "실제 S3 저장 완료", cloudwatch_sent: "CloudWatch 전송 완료", simulated: "로컬 S3 모사 저장 완료" };
 let activeId = null;
 let submissionId = null;
 let lookupVersion = 0;
@@ -156,9 +156,9 @@ export async function refreshLogStatus() {
     if (version !== logVersion) return;
     $("log-summary").textContent = status.destination === "local-s3"
       ? `로컬 S3 모사 · AWS 미연결 · 파일 저장 ${status.sent_events}건 / 대기 ${status.pending_events}건${status.failed_events ? ` / 재시도 ${status.failed_events}건` : ""}`
-      : status.destination === "s3"
-      ? `S3 · ${status.region} · 전송 ${status.sent_events}건 / 대기 ${status.pending_events}건${status.failed_events ? ` / 실패 후 재시도 ${status.failed_events}건` : ""}`
-      : `로컬 보관 ${status.pending_events}건 · AWS S3 연결 전입니다.`;
+      : status.destination === "s3" || status.destination === "cloudwatch"
+      ? `${status.destination === "cloudwatch" ? "CloudWatch" : "S3"} · ${status.region} · 전송 ${status.sent_events}건 / 대기 ${status.pending_events}건${status.failed_events ? ` / 실패 후 재시도 ${status.failed_events}건` : ""}`
+      : `로컬 보관 ${status.pending_events}건 · AWS 연결 전입니다.`;
   } catch { if (version === logVersion) $("log-summary").textContent = "로그 저장 상태를 확인하지 못했습니다. 다시 새로고침하세요."; }
 }
 $("refresh-logs").addEventListener("click", async () => {
