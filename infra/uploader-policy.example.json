@@ -1,0 +1,21 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "WriteWorkloadEvents",
+      "Effect": "Allow",
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::REPLACE_WITH_BUCKET_NAME/workload-events/*",
+      "Condition": {
+        "StringEquals": { "s3:x-amz-server-side-encryption": "AES256" },
+        "Null": { "s3:if-none-match": "false" }
+      }
+    },
+    {
+      "Sid": "VerifyExistingWorkloadEvents",
+      "Effect": "Allow",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::REPLACE_WITH_BUCKET_NAME/workload-events/*"
+    }
+  ]
+}

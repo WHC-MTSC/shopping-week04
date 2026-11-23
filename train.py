@@ -1,174 +1,145 @@
-"""Train and evaluate next-hour sales-invoice count forecasts.
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#   "numpy>=2,<3", "polars>=1.30,<2", "scikit-learn>=1.7,<2",
+#   "pydantic>=2.10,<3", "typer>=0.16,<1",
+# ]
+# ///
+# Run: uv run --locked python train.py --evaluate-test
 
-The input CSV comes from shopping-week02/result/model-input.csv. Each row's
-target is the count during target_hour; all model features are known at its
-start, assuming the previous hour's count has finished processing.
-"""
-
-from __future__ import annotations
-
-import argparse
-import hashlib
-import json
+from hashlib import sha256
 from pathlib import Path
+from typing import Final
 
-import joblib
-import numpy as np
-import pandas as pd
+import polars as pl
 import sklearn
-from sklearn.ensemble import HistGradientBoostingRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import typer
+
+from workload.artifact import load_artifact
+from workload.dataset import read_dataset
+from workload.evaluation import ClassificationMetrics, classification_metrics
+from workload.experiments import ExperimentResult, RegressionResult, export_forest, run_validation
+from workload.features import FEATURE_GROUPS, label_count
+from workload.schemas import FrozenModel
+
+PARITY_TOLERANCE: Final = 1e-12
 
 
-TARGET = "positive_sales_invoice_count"
-BASIC = [
-    "hour_of_day",
-    "day_of_week",
-    "month",
-    "is_weekend",
-    "orders_lag_1h",
-    "orders_lag_24h",
-]
-FULL = BASIC + ["orders_lag_168h", "orders_previous_24h_mean"]
-SEED = 42
+class ModelParityError(RuntimeError):
+    def __init__(self) -> None:
+        super().__init__("serialized model probability parity failed")
 
 
-def read_data(path: Path) -> pd.DataFrame:
-    data = pd.read_csv(path, parse_dates=["target_hour"])
-    required = {"target_hour", TARGET, *FULL}
-    missing = required.difference(data.columns)
-    if missing:
-        raise ValueError(f"Missing columns: {sorted(missing)}")
-    if data.empty or data["target_hour"].isna().any() or data["target_hour"].duplicated().any():
-        raise ValueError("target_hour must contain unique, non-null timestamps")
-    if not data["target_hour"].is_monotonic_increasing:
-        raise ValueError("Rows must be ordered by target_hour")
-    if not data["target_hour"].diff().dropna().eq(pd.Timedelta(hours=1)).all():
-        raise ValueError("Rows must represent consecutive hours")
-    if data[list(required - {"target_hour"})].isna().any().any():
-        raise ValueError("Target and features cannot be null")
-    if (data[TARGET] < 0).any():
-        raise ValueError("Target counts cannot be negative")
-    return data
-
-
-def feature_sets(data: pd.DataFrame) -> dict[str, pd.DataFrame]:
-    engineered = data[FULL].copy()
-    engineered["hour_sin"] = np.sin(2 * np.pi * data["hour_of_day"] / 24)
-    engineered["hour_cos"] = np.cos(2 * np.pi * data["hour_of_day"] / 24)
-    engineered["weekday_sin"] = np.sin(2 * np.pi * data["day_of_week"] / 7)
-    engineered["weekday_cos"] = np.cos(2 * np.pi * data["day_of_week"] / 7)
-    engineered["lag1_minus_daily"] = data["orders_lag_1h"] - data["orders_lag_24h"]
-    engineered["daily_minus_weekly"] = data["orders_lag_24h"] - data["orders_lag_168h"]
-    return {"basic": data[BASIC], "full": data[FULL], "engineered": engineered}
-
-
-def new_model() -> HistGradientBoostingRegressor:
-    return HistGradientBoostingRegressor(
-        loss="poisson",
-        max_iter=200,
-        learning_rate=0.05,
-        max_leaf_nodes=15,
-        l2_regularization=5,
-        random_state=SEED,
+class TrainingReport(FrozenModel):
+    service: str = (
+        "Forecast the coming hour's sales-invoice workload stage from completed hourly history."
     )
+    labels: tuple[str, str, str] = ("idle: 0", "normal: 1-9", "busy: 10+")
+    selection_metric: str = "validation macro F1; ties: accuracy then candidate name"
+    selected: str
+    source_sha256: str
+    source_rows: int
+    warmup_rows: int = 168
+    split_rows: tuple[int, int, int]
+    split_boundaries: tuple[str, str, str, str]
+    validation: list[ExperimentResult]
+    regression_validation: list[RegressionResult]
+    validation_previous_day: ClassificationMetrics
+    validation_majority: ClassificationMetrics
+    library_version: str
+    benchmark_note: str = (
+        "Historical benchmark already reported in PR #1; not a prospective unseen test."
+    )
+    test: ClassificationMetrics | None = None
+    test_previous_day: ClassificationMetrics | None = None
+    test_majority: ClassificationMetrics | None = None
+    roundtrip_max_probability_error: float | None = None
 
 
-def rounded_counts(prediction: np.ndarray) -> np.ndarray:
-    return np.maximum(0, np.rint(prediction)).astype(int)
-
-
-def metrics(actual: np.ndarray, prediction: np.ndarray) -> dict:
-    estimate = rounded_counts(prediction)
-    error = np.abs(actual - estimate)
-    return {
-        "rows": len(actual),
-        "mae": round(float(mean_absolute_error(actual, estimate)), 4),
-        "rmse": round(float(np.sqrt(mean_squared_error(actual, estimate))), 4),
-        "r2": round(float(r2_score(actual, estimate)), 4),
-        "exact_match_rate": round(float(np.mean(error == 0)), 4),
-        "within_2_invoices_rate": round(float(np.mean(error <= 2)), 4),
-        "wape": round(float(error.sum() / actual.sum()), 4) if actual.sum() else None,
-    }
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data", type=Path, default=Path("data/model-input.csv"))
-    parser.add_argument("--out", type=Path, default=Path("artifacts"))
-    args = parser.parse_args()
-    data = read_data(args.data)
-    args.out.mkdir(parents=True, exist_ok=True)
-    n = len(data)
-    train_end, validation_end = int(n * 0.6), int(n * 0.8)
-    y = data[TARGET].to_numpy(dtype=int)
-    sets = feature_sets(data)
-
-    validation = {
-        "previous_day_same_hour": metrics(
-            y[train_end:validation_end],
-            data["orders_lag_24h"].iloc[train_end:validation_end].to_numpy(),
-        )
-    }
-    for name, x in sets.items():
-        candidate = new_model()
-        candidate.fit(x.iloc[:train_end], y[:train_end])
-        validation[name] = metrics(
-            y[train_end:validation_end],
-            candidate.predict(x.iloc[train_end:validation_end]),
-        )
-
-    # Select using validation MAE only. The test period is never used to choose.
-    selected_name = min(sets, key=lambda name: (validation[name]["mae"], name))
-    selected_x = sets[selected_name]
-    model = new_model()
-    model.fit(selected_x.iloc[:validation_end], y[:validation_end])
-    predicted = rounded_counts(model.predict(selected_x.iloc[validation_end:]))
-    actual = y[validation_end:]
-    baseline = data["orders_lag_24h"].iloc[validation_end:].to_numpy(dtype=int)
-    high_load = actual >= 10
-
-    test = {
-        "selected_model": metrics(actual, predicted),
-        "previous_day_same_hour": metrics(actual, baseline),
-        "positive_hours": metrics(actual[actual > 0], predicted[actual > 0]),
-        "high_load_10_or_more": metrics(actual[high_load], predicted[high_load]),
-        "zero_hour_share": round(float(np.mean(actual == 0)), 4),
-    }
-    predictions = pd.DataFrame(
-        {
-            "target_hour": data["target_hour"].iloc[validation_end:].to_numpy(),
-            "actual_count": actual,
-            "predicted_count": predicted,
-            "previous_day_same_hour": baseline,
-            "absolute_error": np.abs(actual - predicted),
+def main(*, evaluate_test: bool = False) -> None:
+    data_path = Path("data/model-input.csv")
+    output = Path("artifacts")
+    output.mkdir(exist_ok=True)
+    data = read_dataset(data_path)
+    chosen, validation, regression = run_validation(data)
+    valid = slice(data.train_end, data.validation_end)
+    baseline = [label_count(int(row[5])) for row in data.features]
+    report = TrainingReport(
+        selected=chosen.name,
+        source_sha256=sha256(data_path.read_bytes()).hexdigest(),
+        source_rows=data.original_rows,
+        split_rows=(
+            data.train_end,
+            data.validation_end - data.train_end,
+            len(data.hours) - data.validation_end,
+        ),
+        split_boundaries=(
+            str(data.hours[0]),
+            str(data.hours[data.train_end]),
+            str(data.hours[data.validation_end]),
+            str(data.hours[-1]),
+        ),
+        validation=validation,
+        regression_validation=regression,
+        validation_previous_day=classification_metrics(data.labels[valid], baseline[valid]),
+        validation_majority=classification_metrics(
+            data.labels[valid], [0] * len(data.labels[valid])
+        ),
+        library_version=sklearn.__version__,
+    )
+    _ = (output / "validation.json").write_text(
+        report.model_dump_json(indent=2) + "\n", encoding="utf-8"
+    )
+    print(report.model_dump_json(indent=2))
+    if not evaluate_test:
+        return
+    model = chosen.create()
+    features = [
+        [row[index] for index in FEATURE_GROUPS[chosen.feature_group]] for row in data.features
+    ]
+    _ = model.fit(features[: data.validation_end], data.labels[: data.validation_end])
+    version = sha256(
+        (report.source_sha256 + chosen.name + sklearn.__version__).encode()
+    ).hexdigest()[:12]
+    artifact = export_forest(model, chosen, version)
+    model_path = output / "model.json"
+    _ = model_path.write_text(artifact.model_dump_json() + "\n", encoding="utf-8")
+    loaded = load_artifact(model_path)
+    test = slice(data.validation_end, len(data.hours))
+    portable = [loaded.predict_proba(row) for row in data.features[test]]
+    original = model.predict_proba(features[test]).tolist()
+    difference = max(
+        abs(p - o)
+        for pp, oo in zip(portable, original, strict=True)
+        for p, o in zip(pp, oo, strict=True)
+    )
+    if difference > PARITY_TOLERANCE:
+        raise ModelParityError
+    predicted = [max(range(3), key=lambda index: row[index]) for row in portable]
+    final = report.model_copy(
+        update={
+            "test": classification_metrics(data.labels[test], predicted),
+            "test_previous_day": classification_metrics(data.labels[test], baseline[test]),
+            "test_majority": classification_metrics(
+                data.labels[test], [0] * len(data.labels[test])
+            ),
+            "roundtrip_max_probability_error": difference,
         }
     )
-    predictions.to_csv(args.out / "test-predictions.csv", index=False)
-
-    report = {
-        "source": str(args.data).replace("\\", "/"),
-        "source_sha256": hashlib.sha256(args.data.read_bytes()).hexdigest(),
-        "target": TARGET,
-        "prediction_time": "Start of target_hour; preceding completed-hour counts are available",
-        "split": {
-            "method": "Chronological 60% train / 20% validation / 20% untouched test",
-            "train": {"rows": train_end, "start": str(data.target_hour.iloc[0]), "end": str(data.target_hour.iloc[train_end - 1])},
-            "validation": {"rows": validation_end - train_end, "start": str(data.target_hour.iloc[train_end]), "end": str(data.target_hour.iloc[validation_end - 1])},
-            "test": {"rows": n - validation_end, "start": str(data.target_hour.iloc[validation_end]), "end": str(data.target_hour.iloc[-1])},
-        },
-        "selection_metric": "validation MAE in invoices per hour",
-        "validation": validation,
-        "selected_model": selected_name,
-        "selected_features": list(selected_x.columns),
-        "test": test,
-        "metric_note": "Exact match and ±2 invoice rates are count tolerances; they are not classification accuracy. WAPE is total absolute error divided by total actual invoices.",
-        "library_versions": {"pandas": pd.__version__, "numpy": np.__version__, "scikit_learn": sklearn.__version__, "joblib": joblib.__version__},
-    }
-    (args.out / "metrics.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    joblib.dump({"model": model, "features": list(selected_x.columns), "target": TARGET}, args.out / "model.joblib")
-    print(json.dumps({"selected_model": selected_name, "validation": validation[selected_name], "test": test}, ensure_ascii=False, indent=2))
+    _ = (output / "metrics.json").write_text(
+        final.model_dump_json(indent=2) + "\n", encoding="utf-8"
+    )
+    pl.DataFrame(
+        {
+            "target_hour": [str(hour) for hour in data.hours[test]],
+            "actual_count": data.counts[test],
+            "actual_stage": data.labels[test],
+            "predicted_stage": predicted,
+            "previous_day_stage": baseline[test],
+        }
+    ).write_csv(output / "test-predictions.csv")
+    print(final.model_dump_json(indent=2))
 
 
 if __name__ == "__main__":
-    main()
+    typer.run(main)
