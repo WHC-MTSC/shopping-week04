@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { HISTORY_HOURS, HOUR_MS, MAX_FILE_BYTES, inspectHistoryCSV, makeRequest, parseHistoryCSV, parseHour, requestFromCSV, toCSV } from "../workload/static/input.mjs";
+import { HISTORY_HOURS, HOUR_MS, MAX_FILE_BYTES, compareCSVActual, inspectHistoryCSV, makeRequest, parseHistoryCSV, parseHour, requestFromCSV, toCSV } from "../workload/static/input.mjs";
 
 function historyFrom(start, length) {
   const milliseconds = parseHour(start).milliseconds;
@@ -39,6 +39,20 @@ test("each selected target includes only its exact prior 168 hours, never its ow
     assert.ok(request.history.every(row => parseHour(row.hour).milliseconds < parseHour(target).milliseconds));
   }
   assert.equal(text, toCSV(history), "Selecting windows does not rewrite the uploaded history");
+});
+
+test("CSV actual comparison is separate from the prediction input and handles missing and zero values", () => {
+  const history = historyFrom("2025-01-01T00:00:00", 170).map((row, i) => ({ ...row, count: i === 168 ? 0 : i === 169 ? 9 : 100 }));
+  const first = history[168].hour;
+  const second = history[169].hour;
+  assert.deepEqual(compareCSVActual(history, first, "idle"), { count: 0, actualStage: "idle", matches: true });
+  assert.deepEqual(compareCSVActual(history, second, "busy"), { count: 9, actualStage: "normal", matches: false });
+  assert.deepEqual(compareCSVActual(history, history[167].hour, "busy"), { count: 100, actualStage: "busy", matches: true });
+  assert.equal(compareCSVActual(history, "2025-01-08T02:00:00", "idle"), null);
+  const request = makeRequest(first, toCSV(history));
+  assert.equal(request.history.length, 168);
+  assert.ok(request.history.every(row => row.hour < first));
+  assert.equal(request.history.some(row => row.count === 0), false);
 });
 
 test("missing history differs from a valid all-zero history", () => {

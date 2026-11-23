@@ -66,6 +66,16 @@ export function makeRequest(targetText, csvText) {
   return { target_hour: target.normalized, history: history.slice(end - HISTORY_HOURS, end) };
 }
 
+// This is for display after predicting only; the target row never enters makeRequest.
+export function compareCSVActual(history, targetText, predictedStage) {
+  const target = parseHour(targetText, "예측 시작 시각");
+  const row = history.find(item => item.hour === target.normalized);
+  if (!row) return null;
+  if (!["idle", "normal", "busy"].includes(predictedStage)) throw new Error("예측 단계가 올바르지 않습니다.");
+  const actualStage = row.count === 0 ? "idle" : row.count < 10 ? "normal" : "busy";
+  return { count: row.count, actualStage, matches: actualStage === predictedStage };
+}
+
 export function toCSV(history) {
   return `hour,count\n${history.map(row => `${row.hour},${row.count}`).join("\n")}\n`;
 }
