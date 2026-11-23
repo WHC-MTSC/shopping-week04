@@ -1,4 +1,4 @@
-import { makeRequest, inspectHistoryCSV, toCSV, HOUR_MS, MAX_FILE_BYTES, parseHour } from "./input.mjs";
+import { makeRequest, inspectHistoryCSV, compareCSVActual, toCSV, HOUR_MS, MAX_FILE_BYTES, parseHour } from "./input.mjs";
 import { recordPrediction } from "./feedback.mjs";
 
 const $ = id => document.getElementById(id);
@@ -119,6 +119,17 @@ function renderResult(result) {
   $("result-stage").textContent = selected.id === "idle" ? "0건" : selected.name;
   $("result-range").textContent = selected.range;
   $("result-action").textContent = selected.action;
+  const comparison = compareCSVActual(availableHistory.history, result.target_hour, result.workload_stage);
+  if (comparison) {
+    const actual = stages.find(stage => stage.id === comparison.actualStage);
+    $("actual-comparison-title").textContent = comparison.matches ? "예측 일치" : "예측 불일치";
+    $("actual-comparison-value").textContent = `CSV 실제값 ${comparison.count.toLocaleString("ko-KR")}건 · ${actual.name} / 예측 ${selected.name}`;
+    $("actual-comparison-note").textContent = "업로드한 CSV에 기록된 값으로 비교했습니다. 정답 로그로 남기려면 아래에서 확인 후 저장하세요.";
+  } else {
+    $("actual-comparison-title").textContent = "실제값 없음";
+    $("actual-comparison-value").textContent = "선택한 시각의 실제 건수가 CSV에 없습니다.";
+    $("actual-comparison-note").textContent = "실제 결과를 알게 되면 아래에서 직접 입력해 저장하세요.";
+  }
   $("probability-bars").replaceChildren();
   stages.forEach((stage, index) => {
     const row = document.createElement("div");

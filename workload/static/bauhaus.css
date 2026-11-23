@@ -195,6 +195,10 @@ textarea { border: 1px solid var(--ink); border-radius: 0; background: var(--pap
 .stage-line h3 { color: #fff; font-size: 72px; font-weight: 800; letter-spacing: -4px; line-height: 1.25; }
 .stage-range { padding: 4px 8px; border: 1px solid #fff; border-radius: 0; color: #fff; font-size: 11px; }
 .result-action { margin: 14px 0 27px; color: #edf0fc; font-size: 13px; }
+.actual-comparison { margin: 0 0 22px; padding: 15px 16px; color: var(--ink); background: #fff; border-left: 5px solid var(--yellow); }
+.actual-comparison strong { display: block; font-size: 18px; }
+.actual-comparison p { margin: 6px 0; font-size: 14px; font-weight: 700; }
+.actual-comparison small { display: block; color: #374151; font-size: 12px; line-height: 1.5; }
 .probability-heading { margin-bottom: 15px; color: #fff; font-size: 12px; }
 .probability-heading > span { color: #dce3fc; font-size: 10px; }
 .probability-row { grid-template-columns: 30px 1fr 50px; margin: 14px 0; gap: 12px; color: #edf0fc; font-size: 12px; }
