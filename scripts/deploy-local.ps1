@@ -158,10 +158,18 @@ function Get-OwnedProcess($State, [switch]$AllowStale) {
     # A later process can reuse a PID after logout/reboot. Never stop that process.
     if ($created -ne $recorded -and $AllowStale) { return $null }
     $mismatches = @()
-    if ($process.ExecutablePath -ne $python) { $mismatches += 'executable_path' }
+    $actualExe = if ($process.ExecutablePath) { [string]$process.ExecutablePath } else { '' }
+    if (-not [string]::Equals($actualExe, $python, [StringComparison]::OrdinalIgnoreCase)) {
+        $mismatches += 'executable_path'
+    }
     if ($created -ne $recorded) { $mismatches += 'creation_time' }
-    if ($process.CommandLine -notmatch '-m uvicorn workload\.api:app') { $mismatches += 'uvicorn_command' }
-    if ($process.CommandLine -notmatch ('--port ' + [int]$State.Port + '(\s|$)')) { $mismatches += 'port' }
+    $cmdLine = if ($process.CommandLine) { [string]$process.CommandLine } else { '' }
+    if (-not $cmdLine -or $cmdLine -notmatch '-m uvicorn workload\.api:app') {
+        $mismatches += 'uvicorn_command'
+    }
+    if (-not $cmdLine -or $cmdLine -notmatch ('--port ' + [int]$State.Port + '(\s|$)')) {
+        $mismatches += 'port'
+    }
     if ($mismatches.Count) {
         throw ('PID ownership cannot be verified (' + ($mismatches -join ', ') + '); refusing to stop or reuse this process.')
     }
@@ -491,3 +499,4 @@ if ($InstallStartup) {
     if ($null -eq (Read-State $currentFile)) { throw 'A verified release is required for Startup.' }
     Install-Startup
 }
+
