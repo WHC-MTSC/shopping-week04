@@ -2,6 +2,8 @@
 
 이번 배포 대상은 현재 사용자 PC입니다. 앱은 `127.0.0.1`에서 실행하고 AWS에는 허용된 기존 CloudWatch 로그 그룹·스트림으로 로그만 보냅니다. EC2·컨테이너·IAM 리소스를 만들지 않습니다. 기본값은 AWS를 호출하지 않는 `local` 저장입니다.
 
+처음 받는 사람은 [Windows 시작 안내](GETTING_STARTED.md)부터 진행하세요. 이 문서는 배포 스크립트의 상세 동작을 설명합니다.
+
 ## 준비와 첫 배포
 
 Windows PowerShell 5.1 이상, `uv`, Node.js 20 이상, Python 3.12 설치에 필요한 네트워크가 필요합니다. `uv sync --locked --python 3.12`가 잠긴 의존성을 설치하며, 코드 검사는 현재 CI와 같은 Ruff·형식·BasedPyright·pytest·JavaScript 입력 계약 테스트를 모두 실행합니다. 검사를 건너뛰는 옵션은 없습니다.
@@ -14,6 +16,19 @@ Windows PowerShell 5.1 이상, `uv`, Node.js 20 이상, Python 3.12 설치에 �
 ```
 
 `uv`나 `node`가 PATH에 없으면 `-UvPath C:\tools\uv.exe -NodePath C:\tools\node.exe`처럼 실제 실행 파일을 지정합니다. Python 다운로드 대신 이미 설치된 Python 3.12를 사용하려면 `-PythonPath C:\tools\python.exe`를 지정합니다. `-SourcePath`로 다른 완성된 소스 디렉터리를 지정할 수 있습니다. 설치 위치는 현재 사용자 문서 폴더의 `Hourahead`입니다. 이 위치는 Codex 같은 MSIX 앱의 AppData 가상화 때문에 Windows 로그인 시 설치를 찾지 못하는 문제를 피합니다.
+
+기존 서비스와 분리할 때는 `-InstallRoot`에 별도 로컬 절대 경로를 지정합니다. 이 경로 아래 코드·가상환경·로그 DB·실행 상태를 독립 보관합니다. 시작·상태 조회·중지·되돌리기에도 **같은 `-InstallRoot`**를 전달해야 합니다. 포트는 첫 배포 시 선택하고 이후 저장된 상태를 사용합니다.
+
+```powershell
+$installRoot = Join-Path $env:USERPROFILE 'Documents\Hourahead-TeamTest'
+.\scripts\deploy-local.ps1 -Action Deploy -InstallRoot $installRoot -Port 18001 -Backend local
+.\scripts\verify-service.ps1 -BaseUrl http://127.0.0.1:18001 -OutputPath runtime\acceptance.json
+.\scripts\deploy-local.ps1 -Action Stop -InstallRoot $installRoot
+.\scripts\deploy-local.ps1 -Action Start -InstallRoot $installRoot
+.\scripts\verify-service.ps1 -BaseUrl http://127.0.0.1:18001 -PreviousReport runtime\acceptance.json -OutputPath runtime\persistence.json
+```
+
+검증기는 `demo` 예측과 합성 정답(0건·T/F false)으로 API·중복 요청·수정 이력·저장 로그를 검사합니다. 실제 정답/학습 자료로 취급하지 않습니다. 두 번째 검사는 기존 ID를 다시 조회해 재시작 후 보존을 확인합니다. 보고서의 `remote_delivery_verified=false`는 AWS 원격 수집 검사가 별도라는 뜻입니다.
 
 소스·모델은 `releases/<새 ID>`에 복사합니다. `runtime`, `.env`, AWS 인증 캐시는 복사 대상에 없습니다. 릴리스마다 별도 가상환경을 설치하고 검사한 뒤 임시 포트에서 `/health`와 `workload.model_check`로 실제 예측·모델 해시를 대조합니다. 사전 검증은 로컬 저장만 사용합니다. 선택한 서비스 포트에서도 검증을 통과한 경우에만 `current.json`을 바꿉니다. 실패한 배포는 기존 릴리스를 현재 상태로 유지하며, 기존 서버를 중지한 뒤 실패했다면 이전 릴리스를 다시 시작합니다. 이전 코드와 모델은 자동 삭제하지 않습니다.
 
@@ -52,6 +67,8 @@ Windows PowerShell 5.1 이상, `uv`, Node.js 20 이상, Python 3.12 설치에 �
 ```
 
 현재 사용자 Startup 폴더에 `Hourahead.lnk`를 만들고 설치 폴더의 스크립트를 숨김 PowerShell로 실행합니다. 관리자 권한이나 실행 정책 우회는 사용하지 않습니다. Windows 로그인 시 시작하며 로그아웃 상태의 시스템 서비스는 아닙니다. 자동 실행을 해제하려면 현재 사용자의 Startup 폴더에서 `Hourahead.lnk`만 삭제합니다. 이미 실행 중인 자체 서버는 다시 만들지 않고 상태를 검증합니다.
+
+위 이름은 기본 설치 경로 기준입니다. 별도 설치는 `-Action Start -InstallRoot $installRoot -InstallStartup`처럼 같은 경로를 전달하며, 바로가기는 `Hourahead-<경로 해시>.lnk`로 구분됩니다. 바로가기 속성의 `-InstallRoot` 경로가 대상 설치와 같은지 확인한 뒤 해당 바로가기만 해제하세요. 새 수령자 검증은 자동 시작 등록 없이 진행합니다.
 
 ## AWS 로그 연결
 

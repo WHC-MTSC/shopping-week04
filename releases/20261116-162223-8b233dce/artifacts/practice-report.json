@@ -1,0 +1,97 @@
+{
+  "purpose": "historical_replay",
+  "candidate_version": "practice-ef3126f6d608b314",
+  "candidate_sha256": "45249bbef1d6a5e6b4d82213df2675890dd3e6e69340ea3030476b12961aa981",
+  "baseline_version": "77f4c9c1af34",
+  "baseline_sha256": "6bb6a0822739c21c398ec932e81117cc422b6e2d90060a134fd666603916dba3",
+  "dataset_sha256": "66e68d7a8bad23a3dae375302dd6de76c82349bfbc9f38564e390f55ed635ca2",
+  "source_events_sha256": "6ebc8b6e82dd1c3b4df4cb5b8221b038498225253f3b28730d2a300e73867f6b",
+  "sklearn_version": "1.9.1",
+  "train_rows": 268,
+  "holdout_rows": 68,
+  "train_end": "2011-10-08T09:00:00",
+  "holdout_start": "2011-10-08T10:00:00",
+  "baseline_metrics": {
+    "rows": 68,
+    "accuracy": 0.9411764705882353,
+    "macro_f1": 0.8282828282828283,
+    "balanced_accuracy": 0.8282828282828283,
+    "active_hour_accuracy": 0.7647058823529411,
+    "class_recall": [
+      1.0,
+      0.8181818181818182,
+      0.6666666666666666
+    ],
+    "class_precision": [
+      1.0,
+      0.8181818181818182,
+      0.6666666666666666
+    ],
+    "confusion_matrix": [
+      [
+        51,
+        0,
+        0
+      ],
+      [
+        0,
+        9,
+        2
+      ],
+      [
+        0,
+        2,
+        4
+      ]
+    ],
+    "class_support": [
+      51,
+      11,
+      6
+    ]
+  },
+  "candidate_metrics": {
+    "rows": 68,
+    "accuracy": 0.9117647058823529,
+    "macro_f1": 0.776797385620915,
+    "balanced_accuracy": 0.7661913250148544,
+    "active_hour_accuracy": 0.7058823529411765,
+    "class_recall": [
+      0.9803921568627451,
+      0.8181818181818182,
+      0.5
+    ],
+    "class_precision": [
+      0.9803921568627451,
+      0.6923076923076923,
+      0.75
+    ],
+    "confusion_matrix": [
+      [
+        50,
+        1,
+        0
+      ],
+      [
+        1,
+        9,
+        1
+      ],
+      [
+        0,
+        3,
+        3
+      ]
+    ],
+    "class_support": [
+      51,
+      11,
+      6
+    ]
+  },
+  "max_probability_error": 2.6645352591003757e-15,
+  "quality_gate_passed": false,
+  "promotion_eligible": false,
+  "gate": "No decrease in chronological holdout macro F1 or busy recall.",
+  "note": "Historical replay practice; never promotion eligible. Holdout excluded from fitting."
+}

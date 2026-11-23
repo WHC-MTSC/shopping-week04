@@ -1,12 +1,23 @@
+import csv
+import io
+import os
+import re
+import shutil
+from datetime import datetime, timedelta
+from itertools import pairwise
 from pathlib import Path
+from urllib.parse import urljoin
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from workload.api import MetadataResponse, create_app
+from workload import api
+from workload.api import HISTORY_CSV_PATH, STATIC_PATH, MetadataResponse, create_app
 from workload.log_delivery import LogSettings
 from workload.log_models import RecordedForecast
 from workload.schemas import ForecastRequest, ForecastResponse
+from workload.web_assets import mount_dashboard
 
 
 def test_dashboard_sample_flows_through_real_model(tmp_path: Path) -> None:
@@ -56,6 +67,7 @@ def test_dashboard_assets_are_browser_loadable(url: str, media_type: str, tmp_pa
         response = client.get(url)
         assert response.status_code == 200
         assert media_type in response.headers["content-type"]
+        assert response.headers["cache-control"] == "no-store"
 
 
 def test_dashboard_does_not_expose_repository_files(tmp_path: Path) -> None:
@@ -64,3 +76,114 @@ def test_dashboard_does_not_expose_repository_files(tmp_path: Path) -> None:
     ) as client:
         assert client.get("/static/%2e%2e/artifact.py").status_code == 404
         assert client.get("/artifacts/model.json").status_code == 404
+
+
+def test_full_history_download_contains_only_continuous_hourly_counts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Installed releases carry examples/ alongside workload/, independent of the launch cwd.
+    installed_csv = Path(api.__file__).resolve().parents[1] / "examples/team-test/full-history.csv"
+    assert installed_csv == HISTORY_CSV_PATH
+    assert HISTORY_CSV_PATH.is_file()
+    monkeypatch.chdir(tmp_path)
+    with TestClient(
+        create_app(log_settings=LogSettings(database=tmp_path / "events.db"))
+    ) as client:
+        response = client.get("/example/history.csv")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "text/csv; charset=utf-8"
+        assert response.headers["cache-control"] == "no-store"
+        assert response.headers["content-disposition"] == (
+            'attachment; filename="hourahead-full-history.csv"'
+        )
+        assert response.content == HISTORY_CSV_PATH.read_bytes()
+        reader = csv.DictReader(io.StringIO(response.text))
+        assert reader.fieldnames == ["hour", "count"]
+        rows = list(reader)
+        assert len(rows) == 8787
+        assert all(set(row) == {"hour", "count"} for row in rows)
+        assert all(row["count"].isdigit() and 0 <= int(row["count"]) <= 100000 for row in rows)
+        hours = [datetime.fromisoformat(row["hour"]) for row in rows]
+        assert hours[0] == datetime(2010, 12, 8, 9)
+        assert hours[-1] == datetime(2011, 12, 9, 11)
+        assert all(later - earlier == timedelta(hours=1) for earlier, later in pairwise(hours))
+        # The original JSON endpoint remains a single causally valid 168-hour request.
+        sample = ForecastRequest.model_validate_json(client.get("/example").text)
+        assert len(sample.history) == 168
+
+
+def test_missing_full_history_download_has_clear_not_found_response(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(api, "HISTORY_CSV_PATH", tmp_path / "missing-history.csv")
+    with TestClient(
+        create_app(log_settings=LogSettings(database=tmp_path / "events.db"))
+    ) as client:
+        response = client.get("/example/history.csv")
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Example history CSV is not available"}
+
+
+def asset_client(directory: Path) -> TestClient:
+    application = FastAPI()
+    mount_dashboard(application, directory)
+    return TestClient(application)
+
+
+def module_url(client: TestClient, page: str, filename: str) -> str:
+    response = client.get(page)
+    assert response.headers["cache-control"] == "no-store"
+    match = re.search(rf'src="(/assets/[0-9a-f]{{64}}/{re.escape(filename)})"', response.text)
+    assert match is not None
+    return match[1]
+
+
+def test_dependency_change_versions_entire_module_graph_even_with_same_size_mtime(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    _ = shutil.copytree(STATIC_PATH, first)
+    _ = shutil.copytree(first, second)
+    dependency = second / "input.mjs"
+    before = dependency.stat()
+    original = dependency.read_bytes()
+    updated = original.replace("정각".encode(), "시각".encode(), 1)
+    assert original != updated
+    _ = dependency.write_bytes(updated)
+    os.utime(dependency, ns=(before.st_atime_ns, before.st_mtime_ns))
+    assert dependency.stat().st_size == before.st_size
+    assert dependency.stat().st_mtime_ns == before.st_mtime_ns
+    assert (first / "app.mjs").read_bytes() == (second / "app.mjs").read_bytes()
+    with asset_client(first) as old, asset_client(second) as new:
+        old_entry = module_url(old, "/", "app.mjs")
+        new_entry = module_url(new, "/", "app.mjs")
+        assert new_entry != old_entry
+        new_prefix = new_entry.rsplit("/", 1)[0]
+        for name in ("app.mjs", "feedback.mjs"):
+            module = new.get(f"{new_prefix}/{name}")
+            assert module.status_code == 200
+            for dependency_match in re.finditer(r'from "(\./[^\"]+\.mjs)"', module.text):
+                relative = dependency_match.group(1)
+                imported = urljoin(f"{new_prefix}/{name}", relative)
+                assert imported.startswith(new_prefix + "/")
+                assert new.get(imported).status_code == 200
+        assert new.get(urljoin(new_entry, "./input.mjs")).content == updated
+        assert new.get(old_entry).status_code == 404
+        assert new.get(f"{new_prefix}/%2e%2e/artifact.py").status_code == 404
+        assert module_url(new, "/log-console", "logs.mjs").startswith(new_prefix + "/")
+
+
+@pytest.mark.parametrize("versioned", [False, True])
+def test_static_assets_do_not_reuse_legacy_file_metadata_validators(*, versioned: bool) -> None:
+    with asset_client(STATIC_PATH) as client:
+        path = module_url(client, "/", "app.mjs") if versioned else "/static/app.mjs"
+        response = client.get(
+            path,
+            headers={"If-None-Match": "*", "If-Modified-Since": "Wed, 21 Oct 2099 07:28:00 GMT"},
+        )
+        assert response.status_code == 200
+        assert response.content == (STATIC_PATH / "app.mjs").read_bytes()
+        assert response.headers["cache-control"] == "no-store"
+        assert "etag" not in response.headers
+        assert "last-modified" not in response.headers

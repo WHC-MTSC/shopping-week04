@@ -8,7 +8,11 @@ let submissionId = null;
 let lookupVersion = 0;
 let feedbackVersion = 0;
 let logVersion = 0;
+let predictionRefreshVersion = 0;
+let latestFeedbackRevision = 0;
+let completedSubmission = null;
 let saving = false;
+let feedbackErrorSource = null;
 
 async function request(path, options = {}) {
   let response;
@@ -21,7 +25,10 @@ async function request(path, options = {}) {
   return response.json();
 }
 
-function showError(message = "") {
+function showError(message = "", source = "other") {
+  // A read failure must not replace an unresolved write outcome.
+  if (source === "refresh" && feedbackErrorSource === "save") return;
+  feedbackErrorSource = message ? source : null;
   $("feedback-error").textContent = message;
   $("feedback-error").hidden = !message;
 }
@@ -30,12 +37,18 @@ function remember(id) {
   try { localStorage.setItem("hourahead.latestPrediction", id); } catch { /* ID can be copied manually. */ }
 }
 
+function resetSubmission() {
+  submissionId = null;
+  completedSubmission = null;
+}
+
 function selectPrediction(id, result, source, status) {
   activeId = id;
-  submissionId = null;
+  resetSubmission();
+  latestFeedbackRevision = 0;
   feedbackVersion += 1;
   $("prediction-id").value = id;
-  $("feedback-context").textContent = `${result.target_hour.slice(0, 16).replace("T", " ")} · 예측 ${stageNames[result.workload_stage]} · ${source === "demo" ? "과거 샘플" : "사용자 데이터"}`;
+  $("feedback-context").textContent = `${result.target_hour.slice(0, 16).replace("T", " ")} · 예측 ${stageNames[result.workload_stage]} · ${source === "demo" ? "실습·테스트 데이터" : "사용자 데이터"}`;
   $("prediction-delivery").textContent = deliveryNames[status];
   $("feedback-form").hidden = false;
   $("feedback-result").textContent = "정답을 아직 입력하지 않았습니다.";
@@ -49,6 +62,11 @@ function selectPrediction(id, result, source, status) {
 function showReceipt(receipt) {
   const { event, log_status: status } = receipt;
   if (event.prediction_id !== activeId) return;
+  latestFeedbackRevision = Math.max(latestFeedbackRevision, event.revision);
+  // Retain uncertain requests for retries; retire an acknowledged request only
+  // after another correction has made that completed revision obsolete.
+  if (completedSubmission?.id === submissionId && completedSubmission.revision < latestFeedbackRevision) resetSubmission();
+  if (event.revision < latestFeedbackRevision) return;
   const feedback = event.submission.feedback;
   let answer;
   if (feedback.kind === "actual_count") answer = `실제 ${feedback.value}건 (${stageNames[event.actual_stage]})`;
@@ -61,7 +79,8 @@ function clearSelection() {
   lookupVersion += 1;
   feedbackVersion += 1;
   activeId = null;
-  submissionId = null;
+  resetSubmission();
+  latestFeedbackRevision = 0;
   $("feedback-form").hidden = true;
   $("feedback-result").textContent = "";
   $("prediction-delivery").textContent = "";
@@ -71,8 +90,13 @@ function clearSelection() {
 
 async function refreshPrediction(id, version) {
   const receiptVersion = feedbackVersion;
-  const detail = await request(`/predictions/${encodeURIComponent(id)}`);
-  if (version !== lookupVersion || activeId !== id) return;
+  const refreshVersion = ++predictionRefreshVersion;
+  const isCurrent = () => refreshVersion === predictionRefreshVersion && version === lookupVersion && activeId === id;
+  let detail;
+  try { detail = await request(`/predictions/${encodeURIComponent(id)}`); }
+  catch (error) { if (isCurrent()) throw error; return; }
+  if (!isCurrent()) return;
+  if (feedbackErrorSource === "refresh") showError();
   $("prediction-delivery").textContent = deliveryNames[detail.log_status];
   if (receiptVersion === feedbackVersion && detail.latest_feedback) showReceipt(detail.latest_feedback);
 }
@@ -87,7 +111,7 @@ export function recordPrediction(result, source) {
   }
   const version = lookupVersion;
   void refreshPrediction(result.prediction_id, version).catch(error => {
-    if (version === lookupVersion) showError(error.message);
+    if (version === lookupVersion) showError(error.message, "refresh");
   });
   void refreshLogStatus();
 }
@@ -108,6 +132,7 @@ async function lookup(id) {
 $("prediction-id").addEventListener("input", clearSelection);
 $("prediction-lookup").addEventListener("submit", async event => {
   event.preventDefault();
+  if (saving) return;
   $("lookup-button").disabled = true;
   try { await lookup($("prediction-id").value.trim()); }
   finally { $("lookup-button").disabled = false; }
@@ -121,7 +146,7 @@ function updateKind() {
   }
 }
 $("feedback-kind").addEventListener("change", updateKind);
-$("feedback-form").addEventListener("input", () => { submissionId = null; showError(); });
+$("feedback-form").addEventListener("input", () => { resetSubmission(); showError(); });
 
 $("feedback-form").addEventListener("submit", async event => {
   event.preventDefault();
@@ -139,14 +164,24 @@ $("feedback-form").addEventListener("submit", async event => {
     feedbackVersion += 1;
     $("save-feedback").disabled = true;
     $("feedback-fields").disabled = true;
+    $("lookup-button").disabled = true;
+    $("prediction-id").disabled = true;
     const receipt = await request(`/predictions/${predictionId}/feedback`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     if (activeId === predictionId && version === lookupVersion) {
       feedbackVersion += 1;
+      completedSubmission = { id: payload.submission_id, revision: receipt.event.revision };
       showReceipt(receipt);
     }
     await refreshLogStatus();
-  } catch (error) { if (activeId === predictionId && version === lookupVersion) showError(error.message); }
-  finally { saving = false; $("save-feedback").disabled = false; $("feedback-fields").disabled = false; updateKind(); }
+  } catch (error) { if (activeId === predictionId && version === lookupVersion) showError(error.message, "save"); }
+  finally {
+    saving = false;
+    $("save-feedback").disabled = false;
+    $("feedback-fields").disabled = false;
+    $("lookup-button").disabled = false;
+    $("prediction-id").disabled = false;
+    updateKind();
+  }
 });
 
 export async function refreshLogStatus() {
@@ -166,7 +201,7 @@ $("refresh-logs").addEventListener("click", async () => {
   if (!activeId) return;
   const version = lookupVersion;
   try { await refreshPrediction(activeId, version); }
-  catch (error) { if (version === lookupVersion) showError(error.message); }
+  catch (error) { if (version === lookupVersion) showError(error.message, "refresh"); }
 });
 updateKind();
 void refreshLogStatus();
