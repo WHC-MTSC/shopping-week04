@@ -1,6 +1,6 @@
 from ctypes import c_float
 from pathlib import Path
-from typing import Annotated, Final, Self
+from typing import Annotated, Final, Literal, Self
 
 from pydantic import Field, model_validator
 from pydantic_core import PydanticCustomError
@@ -12,6 +12,7 @@ STAGES: Final = ("idle", "normal", "busy")
 STAGE_RANGES: Final = ("0", "1-9", "10+")
 PROBABILITY_TOLERANCE: Final = 1e-8
 Probability = Annotated[float, Field(ge=0, le=1)]
+TrainingPurpose = Literal["historical_baseline", "real_feedback", "historical_replay"]
 
 
 class TreeArtifact(FrozenModel):
@@ -59,6 +60,7 @@ class TreeArtifact(FrozenModel):
 class ForestArtifact(FrozenModel):
     schema_version: Annotated[int, Field(ge=1, le=1)] = 1
     model_version: str
+    training_purpose: TrainingPurpose = "historical_baseline"
     feature_names: tuple[str, ...]
     stages: tuple[str, str, str] = STAGES
     trees: Annotated[list[TreeArtifact], Field(min_length=1, max_length=500)]

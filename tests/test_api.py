@@ -1,3 +1,4 @@
+import hashlib
 from collections.abc import Iterator
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -5,10 +6,12 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from workload.api import create_app
+from workload.api import MetadataResponse, create_app
 from workload.artifact import ForestArtifact, TreeArtifact
 from workload.features import FEATURE_NAMES
-from workload.schemas import ForecastRequest, ForecastResponse, HealthResponse, Observation
+from workload.log_delivery import LogSettings
+from workload.log_models import RecordedForecast
+from workload.schemas import ForecastRequest, HealthResponse, Observation
 
 
 @pytest.fixture
@@ -19,7 +22,9 @@ def client(tmp_path: Path) -> Iterator[TestClient]:
     model = ForestArtifact(model_version="test", feature_names=FEATURE_NAMES, trees=[leaf])
     path = tmp_path / "model.json"
     _ = path.write_text(model.model_dump_json(), encoding="utf-8")
-    with TestClient(create_app(path)) as test_client:
+    with TestClient(
+        create_app(path, log_settings=LogSettings(database=tmp_path / "events.sqlite3"))
+    ) as test_client:
         yield test_client
 
 
@@ -39,7 +44,7 @@ def test_predict_when_valid_history_is_posted(client: TestClient, payload: Forec
         "/predict", content=payload.model_dump_json(), headers={"Content-Type": "application/json"}
     )
     assert response.status_code == 200
-    result = ForecastResponse.model_validate_json(response.text)
+    result = RecordedForecast.model_validate_json(response.text)
     assert result.workload_stage == "busy"
     assert result.probabilities == pytest.approx([0.2, 0.3, 0.5])
 
@@ -98,3 +103,25 @@ def test_predict_when_target_cannot_have_prior_history_returns_422(
     raw = payload.model_dump_json().replace("2011-09-27T06:00:00", "0001-01-01T00:00:00", 1)
     response = client.post("/predict", content=raw, headers={"Content-Type": "application/json"})
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize("explicit", [True, False])
+def test_model_selection_reports_exact_loaded_hash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, explicit: bool
+) -> None:
+    path = tmp_path / "candidate.json"
+    tree = TreeArtifact(
+        left=[-1], right=[-1], feature=[-1], threshold=[-2], probabilities=[(0, 1, 0)]
+    )
+    model = ForestArtifact(model_version="candidate", feature_names=FEATURE_NAMES, trees=[tree])
+    body = model.model_dump_json().encode()
+    _ = path.write_bytes(body)
+    monkeypatch.setenv("WORKLOAD_MODEL_PATH", str(tmp_path / "missing" if explicit else path))
+    with TestClient(
+        create_app(
+            path if explicit else None, log_settings=LogSettings(database=tmp_path / "events.db")
+        )
+    ) as test_client:
+        metadata = MetadataResponse.model_validate_json(test_client.get("/metadata").text)
+        assert metadata.model_version == "candidate"
+        assert metadata.model_sha256 == hashlib.sha256(body).hexdigest()

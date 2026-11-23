@@ -1,0 +1,6 @@
+{
+  "model_version": "practice-ef3126f6d608b314",
+  "model_sha256": "45249bbef1d6a5e6b4d82213df2675890dd3e6e69340ea3030476b12961aa981",
+  "model_purpose": "historical_replay",
+  "model_notice": "과거 데이터 재학습·교체 실습 모델입니다. 실데이터 운영 승격 대상이 아닙니다."
+}
