@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="직전 168시간의 판매전표로 다음 1시간의 작업량 단계를 예측합니다.">
+  <title>Hourahead · 시간당 작업량 예측</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23f3f0e6'/%3E%3Ccircle cx='12' cy='12' r='9' fill='%23cb3427'/%3E%3Crect x='16' y='16' width='13' height='13' fill='%232149be'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/bauhaus.css">
+  <script type="module" src="/static/app.mjs"></script>
+</head>
+<body>
+  <a class="skip" href="#main">본문으로 바로가기</a>
+  <aside class="sidebar" aria-label="서비스 안내">
+    <a class="brand" href="/" aria-label="Hourahead 홈"><span class="brand-icon" aria-hidden="true"></span> hourahead</a>
+    <div class="workspace"><div>판매전표 기반<small>시간당 작업량 예측</small></div><span class="version">BETA</span></div>
+    <div class="nav-label">메뉴</div>
+    <nav>
+      <a class="nav-item active" href="#main" aria-current="page"><span aria-hidden="true">01</span> 예측 <span class="nav-arrow" aria-hidden="true">↗</span></a>
+      <a class="nav-item" href="#guide"><span aria-hidden="true">02</span> 모델 정보</a>
+      <a class="nav-item" href="/log-console"><span aria-hidden="true">04</span> 로그 콘솔 <span class="nav-arrow" aria-hidden="true">↗</span></a>
+      <a class="nav-item" href="/docs" target="_blank" rel="noopener"><span aria-hidden="true">03</span> API 문서 <span class="nav-arrow" aria-hidden="true">↗</span></a>
+    </nav>
+    <div class="sidebar-note"><div class="geometry" aria-hidden="true"><span></span><span></span><span></span></div><div class="side-spec"><span>입력 <strong>168h</strong></span><span>예측 <strong>1h</strong></span></div></div>
+    <div class="sidebar-foot"><span class="status-dot" aria-hidden="true"></span> 로컬 검증용</div>
+  </aside>
+  <div class="page">
+    <header class="topbar"><div>HOURAHEAD <span>/</span> <strong>01 예측</strong></div><div id="server-status" class="connection" role="status">모델 확인 중</div></header>
+    <main id="main">
+      <section class="page-heading">
+        <div><div class="eyebrow">01 / FORECAST</div><h1>작업량 예측</h1><p>직전 168시간의 판매전표로 다음 1시간을 예측합니다.</p></div>
+        <button id="load-example" class="button secondary" type="button">샘플 불러오기 <span aria-hidden="true">↗</span></button>
+      </section>
+      <div class="context-strip"><span class="context-label">데이터 기준</span><p>2010–2011년 영국 소매 데이터. <strong>한국 시각을 그대로 사용할 수 없습니다.</strong> 새 점포 적용 시 시간대·집계 기준을 맞춰 재학습해야 합니다.</p></div>
+      <section class="workflow" aria-label="예측 방법">
+        <div><span class="step-number">01</span><p><strong>이력 입력</strong><small>시간별 실제 건수 168개</small></p></div>
+        <span class="step-arrow" aria-hidden="true">→</span>
+        <div><span class="step-number">02</span><p><strong>예측 실행</strong><small>정각부터 1시간</small></p></div>
+        <span class="step-arrow" aria-hidden="true">→</span>
+        <div><span class="step-number">03</span><p><strong>결과 확인</strong><small>없음 · 보통 · 혼잡</small></p></div>
+      </section>
+      <div class="main-grid">
+        <section class="card input-card" aria-labelledby="input-title">
+          <div class="card-heading"><div><span class="section-kicker">A / INPUT</span><h2 id="input-title">입력 데이터</h2></div><span id="source-badge" class="tag">입력 대기</span></div>
+          <form id="forecast-form">
+            <label class="field-label" for="target-hour">예측 시작 시각 <span>원본 영국 현지 시각</span></label>
+            <input id="target-hour" name="target_hour" type="datetime-local" step="3600" min="0001-01-08T00:00" max="9999-12-31T23:00" required aria-describedby="target-help">
+            <p id="target-help" class="field-help">정각만 입력 가능. 해당 시각부터 1시간을 예측합니다.</p>
+            <div class="label-row"><label class="field-label" for="history">직전 168시간 이력</label><button id="download-example" type="button" class="text-button">CSV 예시 ↓</button></div>
+            <div class="upload-box"><span class="upload-icon" aria-hidden="true">↑</span><div><label for="csv-file">CSV 파일 불러오기</label><small id="file-name">hour, count 열 · 최대 1 MB</small></div><input id="csv-file" type="file" accept=".csv,text/csv" aria-label="판매전표 CSV 파일 선택"></div>
+            <details id="csv-editor"><summary>직접 입력 / 수정</summary><textarea id="history" spellcheck="false" aria-label="판매전표 CSV 내용" aria-describedby="csv-help" placeholder="hour,count&#10;2011-09-20T06:00:00,0&#10;2011-09-20T07:00:00,0&#10;…" rows="7"></textarea></details>
+            <p id="csv-help" class="field-help">168시간 전부터 1시간 전까지 오름차순. 누락·중복 없이, 건수는 0~100,000의 정수로 입력합니다.</p>
+            <div id="input-status" class="input-status" role="status">데이터 없음 · 샘플 또는 CSV 선택</div>
+            <div id="form-error" class="error-message" role="alert" hidden></div>
+            <button id="predict-button" type="submit" class="button primary">예측 실행 <span aria-hidden="true">→</span></button>
+            <p class="privacy-note">입력·예측·정답을 기록합니다. S3 연결 전에는 로컬에 보관합니다.</p>
+          </form>
+        </section>
+        <section class="card result-card" aria-labelledby="result-title">
+          <div class="card-heading"><div><span class="section-kicker">B / OUTPUT</span><h2 id="result-title">예측 결과</h2></div><span class="tag dark">1h</span></div>
+          <div id="result-empty" class="result-empty"><div class="empty-art" aria-hidden="true"><span></span><span></span><span></span></div><h3>결과 없음</h3><p>이력을 입력한 뒤 예측을 실행하세요.</p></div>
+          <div id="result" hidden aria-live="polite" aria-atomic="true">
+            <p id="result-period" class="result-period"></p><div class="stage-line"><h3 id="result-stage"></h3><span id="result-range" class="stage-range"></span></div>
+            <p id="result-action" class="result-action"></p>
+            <div class="probabilities"><div class="probability-heading">단계별 예측 확률 <span>모델 출력</span></div><div id="probability-bars"></div></div>
+            <p class="probability-note">확률은 보정되지 않은 모델 출력이며, 정답을 보장하는 신뢰도가 아닙니다.</p>
+            <div class="result-meta"><span id="result-source"></span><span id="result-version"></span></div>
+          </div>
+          <div class="stage-legend"><div><span class="legend-dot idle"></span><strong>없음</strong><small>0건</small></div><div><span class="legend-dot normal"></span><strong>보통</strong><small>1–9건</small></div><div><span class="legend-dot busy"></span><strong>혼잡</strong><small>10건 이상</small></div></div>
+        </section>
+      </div>
+      <section class="card history-card" aria-labelledby="history-title"><div class="card-heading"><div><span class="section-kicker">C / HISTORY</span><h2 id="history-title">시간별 판매전표</h2></div><span id="history-summary" class="history-summary">데이터 없음</span></div><div id="chart-empty" class="chart-empty">유효한 168시간 이력을 입력하면 표시됩니다.</div><div id="history-chart" hidden></div></section>
+      <section class="card feedback-card" aria-labelledby="feedback-title">
+        <div class="card-heading"><div><span class="section-kicker">ACTUAL &amp; FEEDBACK</span><h2 id="feedback-title">실제 결과를 기록해 주세요</h2></div><button id="refresh-logs" class="text-button" type="button">저장 상태 새로고침 ↻</button></div>
+        <p class="field-help">대상 시간이 끝난 뒤 실제 결과를 입력하세요. 예측 ID로 나중에 다시 조회할 수 있습니다. 정답을 수정하면 이전 기록도 이력으로 남습니다.</p>
+        <form id="prediction-lookup" class="lookup-row"><label for="prediction-id" class="field-label">예측 ID</label><input id="prediction-id" type="text" required autocomplete="off" placeholder="예측 후 자동 입력 · 저장한 ID로 다시 조회" pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"><button id="lookup-button" class="button secondary" type="submit">조회</button></form>
+        <p id="feedback-context" class="field-help">예측을 실행하거나 기존 예측 ID를 조회하세요.</p><p id="prediction-delivery" class="field-help"></p>
+        <form id="feedback-form" hidden>
+          <fieldset id="feedback-fields"><legend>사용자 정답</legend><div class="feedback-fields">
+            <div><label for="feedback-kind" class="field-label">정답 입력 방식</label><select id="feedback-kind"><option value="actual_count">실제 판매전표 건수</option><option value="actual_stage">실제 작업량 단계</option><option value="correctness">예측이 맞았나요? (T/F)</option></select></div>
+            <div><label for="feedback-count" class="field-label">실제 건수</label><input id="feedback-count" type="number" min="0" max="100000" step="1" required placeholder="예: 12"></div>
+            <div hidden><label for="feedback-stage" class="field-label">실제 작업량 단계</label><select id="feedback-stage" required disabled><option value="">선택하세요</option><option value="idle">없음 (0건)</option><option value="normal">보통 (1–9건)</option><option value="busy">혼잡 (10건 이상)</option></select></div>
+            <div hidden><label for="feedback-correctness" class="field-label">예측 단계에 대한 사용자 판정</label><select id="feedback-correctness" required disabled><option value="">선택하세요</option><option value="true">맞음 (T)</option><option value="false">틀림 (F)</option></select></div>
+          </div></fieldset><p class="field-help">T/F는 예측 단계의 정오 판정입니다. 실제 건수·실제 단계와 구분해서 기록하며, 정답을 모델 입력에 섞지 않습니다.</p>
+          <button id="save-feedback" class="button primary" type="submit">정답 저장하기 →</button>
+        </form>
+        <div id="feedback-error" class="error-message" role="alert" hidden></div><p id="feedback-result" class="feedback-result" role="status"></p><p id="log-summary" class="log-summary" role="status">로그 저장 상태 확인 중</p>
+      </section>
+      <section id="guide" class="guide"><div><span class="section-kicker">02 / MODEL</span><h2>모델 정보</h2></div><div class="guide-copy"><p><strong>예측 대상</strong> 양수 판매전표 건수에 따른 작업량 단계. 정확한 건수·처리 시간·필요 인원은 예측하지 않습니다.</p><p><strong>입력 조건</strong> 직전 시간까지 집계가 끝난 실제 건수. 예측값을 이력에 넣는 여러 시간 앞 예측은 검증하지 않았습니다.</p><p><strong>과거 평가</strong> 1,758시간 기준 단계 정확도 90.56%, 혼잡 재현율 85.71%. 주문이 있는 시간의 정확도는 76.46%입니다. 새 점포는 별도 검증이 필요합니다.</p></div></section>
+      <footer><span>HOURAHEAD <span class="footer-separator">/</span> 작업량 예측</span><span>사용자 정답 · 예측 로그 수집</span></footer>
+      <noscript><p class="error-message">이 화면에서 예측하려면 JavaScript를 활성화하세요. API는 /docs에서 확인할 수 있습니다.</p></noscript>
+    </main>
+  </div>
+</body>
+</html>
